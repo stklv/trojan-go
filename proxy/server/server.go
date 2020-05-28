@@ -22,9 +22,6 @@ import (
 )
 
 type Server struct {
-	common.Runnable
-	proxy.Buildable
-
 	listener net.Listener
 	auth     stat.Authenticator
 	config   *conf.GlobalConfig
@@ -82,13 +79,15 @@ func (s *Server) handleConn(conn net.Conn) {
 	defer conn.Close()
 
 	if req.Command == protocol.Mux {
-		muxServer, err := smux.Server(inboundConn, nil)
+		smuxConfig := smux.DefaultConfig()
+		smuxConfig.KeepAliveDisabled = true
+		muxServer, err := smux.Server(inboundConn, smuxConfig)
 		common.Must(err)
 		defer muxServer.Close()
 		for {
 			stream, err := muxServer.AcceptStream()
 			if err != nil {
-				log.Debug("Mux conn from", conn.RemoteAddr(), "closed:", err)
+				log.Error(common.NewError("Failed to accpet mux conn from " + conn.RemoteAddr().String()).Base(err))
 				return
 			}
 			go s.handleMuxConn(stream)
@@ -170,24 +169,33 @@ func (s *Server) ListenTCP(errChan chan error) {
 			rewindConn := common.NewRewindConn(conn)
 			rewindConn.R.SetBufferSize(2048)
 
+			sniVerified := false
 			tlsConfig := &tls.Config{
 				Certificates:             s.config.TLS.KeyPair,
 				CipherSuites:             s.config.TLS.CipherSuites,
 				PreferServerCipherSuites: s.config.TLS.PreferServerCipher,
 				SessionTicketsDisabled:   !s.config.TLS.SessionTicket,
 				NextProtos:               s.config.TLS.ALPN,
+				KeyLogWriter:             s.config.TLS.KeyLogger,
+				GetCertificate: func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+					if s.config.TLS.VerifyHostName && hello.ServerName != s.config.TLS.SNI {
+						return nil, common.NewError("Invalid SNI: " + hello.ServerName)
+					}
+					sniVerified = true
+					return &s.config.TLS.KeyPair[0], nil
+				},
 			}
 			tlsConn := tls.Server(rewindConn, tlsConfig)
 			err = tlsConn.Handshake()
 			rewindConn.R.StopBuffering()
 			protocol.CancelTimeout(conn)
 
-			if s.config.LogLevel == 0 {
-				state := tlsConn.ConnectionState()
-				log.Trace("TLS handshaked", tls.CipherSuiteName(state.CipherSuite), state.DidResume, state.NegotiatedProtocol)
-			}
-
 			if err != nil {
+				if !sniVerified {
+					// close tls conn immediately if the sni is invalid
+					tlsConn.Close()
+					return
+				}
 				rewindConn.R.Rewind()
 				err = common.NewError("Failed to perform TLS handshake with " + conn.RemoteAddr().String()).Base(err)
 				log.Warn(err)
@@ -204,6 +212,11 @@ func (s *Server) ListenTCP(errChan chan error) {
 					rewindConn.Close()
 				}
 				return
+			}
+
+			if s.config.LogLevel == 0 {
+				state := tlsConn.ConnectionState()
+				log.Trace("TLS handshaked", tls.CipherSuiteName(state.CipherSuite), state.DidResume, state.NegotiatedProtocol)
 			}
 			s.handleConn(tlsConn)
 		}(conn)
@@ -245,10 +258,12 @@ func (*Server) Build(config *conf.GlobalConfig) (common.Runnable, error) {
 	}
 	auth, err := stat.NewAuth(ctx, authDriver, config)
 	if err != nil {
+		cancel()
 		return nil, err
 	}
 	router, err := router.NewRouter(&config.Router)
 	if err != nil {
+		cancel()
 		return nil, err
 	}
 	s := &Server{

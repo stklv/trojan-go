@@ -16,14 +16,88 @@ import (
 	"github.com/xtaci/smux"
 )
 
-type MuxID uint32
+// HACK stick the smux 8 bytes header to the payload
+type smuxStickyReadWriteCloser struct {
+	io.ReadWriteCloser
+	synQueue chan []byte
+	finQueue chan []byte
+}
 
-func generateMuxID() MuxID {
-	return MuxID(rand.Uint32())
+func (rwc *smuxStickyReadWriteCloser) stickToPayload(p []byte) []byte {
+	buf := make([]byte, 0, len(p)+16)
+	for {
+		select {
+		case header := <-rwc.synQueue:
+			buf = append(buf, header...)
+		default:
+			goto stick1
+		}
+	}
+stick1:
+	buf = append(buf, p...)
+	for {
+		select {
+		case header := <-rwc.finQueue:
+			buf = append(buf, header...)
+		default:
+			goto stick2
+		}
+	}
+stick2:
+	return buf
+}
+
+func (rwc *smuxStickyReadWriteCloser) Close() error {
+	const maxPaddingLength = 512
+	padding := [maxPaddingLength + 8]byte{0, 0, 'A', 'B', 'C', 'D', 'E', 'F'}
+	buf := rwc.stickToPayload(nil)
+	rwc.Write(append(buf, padding[:rand.Intn(maxPaddingLength)]...))
+	return rwc.ReadWriteCloser.Close()
+}
+
+func (rwc *smuxStickyReadWriteCloser) Write(p []byte) (int, error) {
+	if len(p) == 8 {
+		if p[0] == 1 || p[0] == 2 { //smux 8 bytes header
+			switch p[1] {
+			// THE CONTENT OF THE BUFFER MIGHT CHANGE
+			// NEVER STORE THE POINTER TO HEADER, COPY THE HEADER INSTEAD
+			case 0:
+				//cmdSYN
+				header := make([]byte, 8)
+				copy(header, p)
+				rwc.synQueue <- header
+				return 8, nil
+			case 1:
+				//cmdFIN
+				header := make([]byte, 8)
+				copy(header, p)
+				rwc.finQueue <- header
+				return 8, nil
+			}
+		} else {
+			log.Debug("Unknown 8 bytes")
+		}
+	}
+	_, err := rwc.ReadWriteCloser.Write(rwc.stickToPayload(p))
+	return len(p), err
+}
+
+func newSmuxStickyReadWriteCloser(rwc io.ReadWriteCloser) *smuxStickyReadWriteCloser {
+	return &smuxStickyReadWriteCloser{
+		ReadWriteCloser: rwc,
+		synQueue:        make(chan []byte, 128),
+		finQueue:        make(chan []byte, 128),
+	}
+}
+
+type muxID uint32
+
+func generateMuxID() muxID {
+	return muxID(rand.Uint32())
 }
 
 type muxClientInfo struct {
-	id             MuxID
+	id             muxID
 	client         *smux.Session
 	lastActiveTime time.Time
 }
@@ -32,7 +106,7 @@ type MuxManager struct {
 	TransportManager
 
 	sync.Mutex
-	muxPool   map[MuxID]*muxClientInfo
+	muxPool   map[muxID]*muxClientInfo
 	config    *conf.GlobalConfig
 	auth      stat.Authenticator
 	ctx       context.Context
@@ -55,14 +129,18 @@ func (m *MuxManager) newMuxClient() (*muxClientInfo, error) {
 	if err != nil {
 		return nil, common.NewError("Failed to dail to remote server").Base(err)
 	}
-	conn, err := trojan.NewOutboundConnSession(req, rwc, m.config, m.auth)
+	trojanConn, err := trojan.NewOutboundConnSession(req, rwc, m.config, m.auth)
 	if err != nil {
 		rwc.Close()
 		log.Error(common.NewError("Failed to dial tls tunnel").Base(err))
 		return nil, err
 	}
 
-	client, err := smux.Client(conn, nil)
+	smuxRWC := newSmuxStickyReadWriteCloser(trojanConn)
+
+	smuxConfig := smux.DefaultConfig()
+	smuxConfig.KeepAliveDisabled = true
+	client, err := smux.Client(smuxRWC, smuxConfig)
 	common.Must(err)
 	log.Info("Mux TLS tunnel established, client id:", id)
 	return &muxClientInfo{
@@ -94,7 +172,7 @@ func (m *MuxManager) pickMuxClient() (*muxClientInfo, error) {
 	default:
 	}
 
-	//not found
+	// not found
 	info, err := m.newMuxClient()
 	if err != nil {
 		return nil, err
@@ -114,7 +192,7 @@ func (m *MuxManager) DialToServer() (io.ReadWriteCloser, error) {
 		defer m.Unlock()
 		delete(m.muxPool, info.id)
 		info.client.Close()
-		log.Info("Somthing wrong with mux client", info.id, ", closing")
+		log.Warn("Somthing wrong with mux client", info.id, ", closing")
 		return nil, err
 	}
 	log.Info("New mux conn established with client", info.id)
@@ -165,7 +243,7 @@ func NewMuxPoolManager(ctx context.Context, config *conf.GlobalConfig, auth stat
 	m := &MuxManager{
 		ctx:       ctx,
 		config:    config,
-		muxPool:   make(map[MuxID]*muxClientInfo),
+		muxPool:   make(map[muxID]*muxClientInfo),
 		transport: NewTLSManager(config),
 		auth:      auth,
 	}

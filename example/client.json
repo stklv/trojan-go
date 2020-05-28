@@ -8,7 +8,7 @@
         "your_password"
     ],
     "ssl": {
-        "sni": "your_domain_name"
+        "sni": "your-domain-name.com"
     },
     "mux" :{
         "enabled": true
@@ -17,13 +17,16 @@
         "enabled": true,
         "bypass": [
             "geoip:cn",
+            "geoip:private",
             "geosite:cn",
-            "geosite:private"
+            "geosite:geolocation-cn"
         ],
         "block": [
             "geosite:category-ads"
         ],
-        "proxy": [],
+        "proxy": [
+            "geosite:geolocation-!cn"
+        ],
         "default_policy": "proxy"
     }
 }

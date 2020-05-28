@@ -3,6 +3,7 @@ package conf
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"io"
 
 	"github.com/p4gefau1t/trojan-go/common"
 	utls "github.com/refraction-networking/utls"
@@ -29,6 +30,7 @@ const (
 
 type TLSConfig struct {
 	Verify               bool     `json:"verify"`
+	VerifyHostName       bool     `json:"verify_hostname"`
 	CertPath             string   `json:"cert"`
 	KeyPath              string   `json:"key"`
 	ClientCertPath       []string `json:"client_cert"`
@@ -45,6 +47,7 @@ type TLSConfig struct {
 	Curves               string   `json:"curves"`
 	Fingerprint          string   `json:"fingerprint"`
 	ServePlainText       bool     `json:"serve_plain_text"`
+	KeyLogPath           string   `json:"key_log"`
 
 	ClientHelloID    *utls.ClientHelloID
 	FallbackAddress  *common.Address
@@ -56,6 +59,7 @@ type TLSConfig struct {
 	CipherSuiteTLS13 []uint16
 	SessionTicket    bool
 	CurvePreferences []tls.CurveID
+	KeyLogger        io.Writer
 }
 
 type TCPConfig struct {

@@ -5,7 +5,7 @@
 [![HitCounts](http://hits.dwyl.io/p4gefau1t/trojan-go.svg)](http://hits.dwyl.io/p4gefau1t/trojan-go)
 [![Release](https://img.shields.io/github/v/release/p4gefau1t/trojan-go?include_prereleases)](https://img.shields.io/github/v/release/p4gefau1t/trojan-go?include_prereleases)
 [![Release Date](https://img.shields.io/github/release-date-pre/p4gefau1t/trojan-go)](https://img.shields.io/github/release-date-pre/p4gefau1t/trojan-go)
-[![Docker Image](https://images.microbadger.com/badges/image/p4gefau1t/trojan-go.svg)](https://microbadger.com/images/p4gefau1t/trojan-go)
+[![Docker Image](https://images.microbadger.com/badges/image/p4gefau1t/trojan-go.svg)](https://hub.docker.com/r/p4gefau1t/trojan-go)
 
 [![Commit](https://img.shields.io/github/last-commit/p4gefau1t/trojan-go)](https://img.shields.io/github/last-commit/p4gefau1t/trojan-go)
 [![Commit Activity](https://img.shields.io/github/commit-activity/m/p4gefau1t/trojan-go)](https://img.shields.io/github/commit-activity/m/p4gefau1t/trojan-go)
@@ -74,7 +74,7 @@ Trojan-Go服务端可以兼容所有Trojan-GFW的客户端，如Igniter，Shadow
 
 [Trojan-Qt5](https://github.com/Trojan-Qt5/Trojan-Qt5/)，跨平台客户端，支持Windows/MacOS/Linux，使用Trojan-Go核心，支持所有Trojan-Go扩展特性。
 
-[Igniter-Go](https://github.com/p4gefau1t/trojan-go-android)，Fork自Igniter，将Igniter核心替换为Trojan-Go并做了一定修改，支持所有Trojan-Go扩展特性。
+[Igniter-Go](https://github.com/p4gefau1t/trojan-go-android)，安卓客户端，Fork自Igniter，将Igniter核心替换为Trojan-Go并做了一定修改，支持所有Trojan-Go扩展特性。
 
 ## 使用方法
 

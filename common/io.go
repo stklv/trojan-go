@@ -8,9 +8,6 @@ import (
 )
 
 type RewindReader struct {
-	io.Reader
-	io.ByteReader
-
 	rawReader  io.Reader
 	buf        []byte
 	bufReadIdx int
@@ -126,8 +123,8 @@ func ReadByte(r io.Reader) (byte, error) {
 }
 
 type RewindConn struct {
-	R *RewindReader
 	net.Conn
+	R *RewindReader
 }
 
 func (c *RewindConn) Read(p []byte) (int, error) {
@@ -139,4 +136,25 @@ func NewRewindConn(conn net.Conn) *RewindConn {
 		Conn: conn,
 		R:    NewRewindReader(conn),
 	}
+}
+
+type StickyWriter struct {
+	rawWriter   io.Writer
+	writeBuffer []byte
+	MaxBuffered int
+}
+
+func (w *StickyWriter) Write(p []byte) (int, error) {
+	if w.MaxBuffered > 0 {
+		w.MaxBuffered--
+		w.writeBuffer = append(w.writeBuffer, p...)
+		if w.MaxBuffered != 0 {
+			return len(p), nil
+		}
+		w.MaxBuffered = 0
+		_, err := w.rawWriter.Write(w.writeBuffer)
+		w.writeBuffer = nil
+		return len(p), err
+	}
+	return w.rawWriter.Write(p)
 }

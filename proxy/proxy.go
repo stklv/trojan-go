@@ -17,6 +17,10 @@ type Buildable interface {
 }
 
 func RelayConn(ctx context.Context, a, b io.ReadWriter, bufferSize int) {
+	if a == nil || b == nil {
+		log.Debug("Empty RW")
+		return
+	}
 	errChan := make(chan error, 2)
 	copyConn := func(dst io.Writer, src io.Reader) {
 		buf := make([]byte, bufferSize)
@@ -28,7 +32,7 @@ func RelayConn(ctx context.Context, a, b io.ReadWriter, bufferSize int) {
 	select {
 	case err := <-errChan:
 		if err != nil {
-			log.Debug(common.NewError("conn proxy ends").Base(err))
+			log.Debug(common.NewError("Conn relaying ends").Base(err))
 		}
 	case <-ctx.Done():
 		return
@@ -36,6 +40,10 @@ func RelayConn(ctx context.Context, a, b io.ReadWriter, bufferSize int) {
 }
 
 func RelayPacket(ctx context.Context, a, b protocol.PacketReadWriter) {
+	if a == nil || b == nil {
+		log.Debug("Empty RW")
+		return
+	}
 	errChan := make(chan error, 2)
 	copyPacket := func(dst protocol.PacketWriter, src protocol.PacketReader) {
 		for {
@@ -55,7 +63,7 @@ func RelayPacket(ctx context.Context, a, b protocol.PacketReadWriter) {
 	go copyPacket(b, a)
 	select {
 	case err := <-errChan:
-		log.Debug(common.NewError("Packet proxy ends").Base(err))
+		log.Debug(common.NewError("Packet relaying ends").Base(err))
 	case <-ctx.Done():
 		return
 	}
@@ -109,7 +117,7 @@ func RelayPacketWithRouter(ctx context.Context, from protocol.PacketReadWriter, 
 	go copyToDst()
 	select {
 	case err := <-errChan:
-		log.Debug(common.NewError("Packet proxy with routing ends").Base(err))
+		log.Debug(common.NewError("Packet relaying with router ends").Base(err))
 	case <-ctx.Done():
 		return
 	}

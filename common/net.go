@@ -17,8 +17,6 @@ const (
 )
 
 type Address struct {
-	net.Addr
-
 	DomainName  string
 	Port        int
 	NetworkType string
@@ -35,7 +33,7 @@ func (a *Address) String() string {
 	case DomainName:
 		return fmt.Sprintf("%s:%d", a.DomainName, a.Port)
 	default:
-		return ""
+		return "INVALID_ADDRESS_TYPE"
 	}
 }
 
@@ -87,7 +85,7 @@ func (a *Address) Marshal(r io.Reader) error {
 	byteBuf := [1]byte{}
 	_, err := r.Read(byteBuf[:])
 	if err != nil {
-		return NewError("Unable to read atype").Base(err)
+		return NewError("Unable to read ATYPE").Base(err)
 	}
 	a.AddressType = AddressType(byteBuf[0])
 	switch a.AddressType {

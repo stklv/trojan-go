@@ -18,7 +18,23 @@ import (
 	"golang.org/x/crypto/pbkdf2"
 )
 
+func setKeyLogger(tlsConfig *TLSConfig) error {
+	if tlsConfig.KeyLogPath != "" {
+		log.Warn("TLS key logging activated. USE OF KEY LOGGING COMPROMISES SECURITY. IT SHOULD ONLY BE USED FOR DEBUGGING.")
+		file, err := os.OpenFile(tlsConfig.KeyLogPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+		if err != nil {
+			return common.NewError("Failed to open key log file").Base(err)
+		}
+		tlsConfig.KeyLogger = file
+	}
+	return nil
+}
+
 func loadCert(tlsConfig *TLSConfig) error {
+	err := setKeyLogger(tlsConfig)
+	if err != nil {
+		return err
+	}
 	if tlsConfig.CertPath == "" {
 		log.Info("Cert of the remote server is unspecified. Using default CA list")
 	} else {
@@ -55,6 +71,10 @@ func loadCert(tlsConfig *TLSConfig) error {
 }
 
 func loadCertAndKey(tlsConfig *TLSConfig) error {
+	err := setKeyLogger(tlsConfig)
+	if err != nil {
+		return err
+	}
 	if tlsConfig.KeyPassword != "" {
 		keyFile, err := ioutil.ReadFile(tlsConfig.KeyPath)
 		if err != nil {
@@ -307,7 +327,7 @@ func loadClientConfig(config *GlobalConfig) error {
 		log.Debug("Forward proxy", config.ForwardProxy.ProxyAddress.String())
 	}
 
-	if config.Websocket.DoubleTLS {
+	if config.Websocket.Enabled && config.Websocket.DoubleTLS {
 		if config.Websocket.TLS.CertPath == "" {
 			log.Warn("Empty double TLS settings, using default ssl settings")
 			config.Websocket.TLS = config.TLS
@@ -342,6 +362,12 @@ func loadServerConfig(config *GlobalConfig) error {
 			return err
 		}
 	}
+
+	if config.TLS.SNI == "" {
+		log.Warn("Empty SNI field. Server will not verify the SNI in client hello request")
+		config.TLS.VerifyHostName = false
+	}
+
 	if config.TLS.HTTPResponseFileName != "" {
 		payload, err := ioutil.ReadFile(config.TLS.HTTPResponseFileName)
 		if err != nil {
@@ -352,7 +378,7 @@ func loadServerConfig(config *GlobalConfig) error {
 
 	if config.Websocket.DoubleTLS {
 		if config.Websocket.TLS.CertPath == "" {
-			log.Warn("Empty double TLS settings, using default ssl settings")
+			log.Warn("Empty double TLS settings, using global TLS settings")
 			config.Websocket.TLS = config.TLS
 		}
 		if err := loadCertAndKey(&config.Websocket.TLS); err != nil {
@@ -389,9 +415,10 @@ func ParseJSON(data []byte) (*GlobalConfig, error) {
 		Websocket: WebsocketConfig{
 			DoubleTLS: true,
 			TLS: TLSConfig{
-				Verify:        true,
-				SessionTicket: true,
-				ReuseSession:  true,
+				Verify:         true,
+				VerifyHostName: true,
+				SessionTicket:  true,
+				ReuseSession:   true,
 			},
 		},
 		MySQL: MySQLConfig{

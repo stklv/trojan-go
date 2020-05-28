@@ -17,18 +17,19 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 
-	"github.com/p4gefau1t/trojan-go/api"
+	_ "github.com/p4gefau1t/trojan-go/api/service"
 	"github.com/p4gefau1t/trojan-go/common"
 	"github.com/p4gefau1t/trojan-go/conf"
 	_ "github.com/p4gefau1t/trojan-go/log/golog"
 	tp "github.com/p4gefau1t/trojan-go/proxy"
 	"github.com/p4gefau1t/trojan-go/proxy/client"
 	"github.com/p4gefau1t/trojan-go/proxy/server"
+
+	//_ "github.com/p4gefau1t/trojan-go/router/mixed"
 	_ "github.com/p4gefau1t/trojan-go/stat/memory"
 	_ "github.com/p4gefau1t/trojan-go/stat/mysql"
 	"golang.org/x/net/proxy"
 	"golang.org/x/net/websocket"
-	"google.golang.org/grpc"
 )
 
 var cert string = `
@@ -102,6 +103,7 @@ func getTLSConfig() conf.TLSConfig {
 		CertPool:        pool,
 		KeyPair:         KeyPair,
 		Verify:          true,
+		VerifyHostName:  true,
 		ReuseSession:    true,
 		SessionTicket:   true,
 		FallbackAddress: common.NewAddress("127.0.0.1", 10080, "tcp"),
@@ -127,7 +129,7 @@ func getPasswords(password string) []string {
 
 func getBasicServerConfig() *conf.GlobalConfig {
 	config := &conf.GlobalConfig{
-		LocalAddress:  common.NewAddress("127.0.0.1", 4445, "tcp"),
+		LocalAddress:  common.NewAddress("0.0.0.0", 4445, "tcp"),
 		RemoteAddress: common.NewAddress("127.0.0.1", 10080, "tcp"),
 		TLS:           getTLSConfig(),
 		Hash:          getHash("trojanpassword"),
@@ -146,6 +148,9 @@ func getBasicClientConfig() *conf.GlobalConfig {
 		Passwords:     getPasswords("trojanpassword"),
 		BufferSize:    512 * 1024,
 	}
+	file, err := os.OpenFile("keylog.txt", os.O_CREATE|os.O_WRONLY, 0600)
+	common.Must(err)
+	config.TLS.KeyLogger = file
 	return config
 }
 
@@ -286,7 +291,7 @@ func CheckClientServer(t *testing.T, clientConfig *conf.GlobalConfig, serverConf
 func CheckForwardServer(t *testing.T, clientConfig *conf.GlobalConfig, serverConfig *conf.GlobalConfig) {
 	time.Sleep(time.Second)
 	ctx, cancel := context.WithCancel(context.Background())
-	clientConfig.TargetAddress = common.NewAddress("127.0.0.1", 5000, "tcp")
+	clientConfig.TargetAddress = common.NewAddress("localhost", 5000, "tcp")
 	go RunEchoTCPServer(ctx)
 	go RunEchoUDPServer(ctx)
 	go RunServer(ctx, serverConfig)
@@ -379,16 +384,29 @@ func TestRealProxy(t *testing.T) {
 	if os.Getenv("real_test") == "" {
 		t.Skip("skipping real proxy test")
 	}
-	clientConfig := getBasicClientConfig()
+	clientConfig := addMuxConfig(getBasicClientConfig())
 	serverConfig := getBasicServerConfig()
 	go RunClient(context.Background(), clientConfig)
 	go RunHelloHTTPServer(context.Background())
 	RunServer(context.Background(), serverConfig)
 }
 
+func TestRealClient(t *testing.T) {
+	if os.Getenv("real_test") == "" {
+		t.Skip("skipping real proxy test")
+	}
+	b, err := ioutil.ReadFile("/etc/trojan-go/config.json")
+	common.Must(err)
+	config, err := conf.ParseJSON(b)
+	common.Must(err)
+	RunClient(context.Background(), config)
+}
+
 func TestNormal(t *testing.T) {
-	CheckClientServer(t, getBasicClientConfig(), getBasicServerConfig())
-	CheckForwardServer(t, getBasicClientConfig(), getBasicServerConfig())
+	clientConfig := getBasicClientConfig()
+	serverConfig := getBasicServerConfig()
+	CheckClientServer(t, clientConfig, serverConfig)
+	CheckForwardServer(t, clientConfig, serverConfig)
 }
 
 func TestMux(t *testing.T) {
@@ -535,84 +553,6 @@ func TestMySQL(t *testing.T) {
 	clientConfig.Passwords = getPasswords("mysqlpassword")
 	clientConfig.Hash = getHash("mysqlpassword")
 	CheckClientServer(t, clientConfig, serverConfig)
-}
-
-func TestServerAPI(t *testing.T) {
-	serverConfig := addAPIConfig(getBasicServerConfig())
-	clientConfig := getBasicClientConfig()
-	clientConfig.Hash = getHash("apitest")
-	clientConfig.Passwords = getPasswords("apitest")
-
-	ctx, cancel := context.WithCancel(context.Background())
-
-	go RunBlackHoleTCPServer(ctx)
-	go RunServer(ctx, serverConfig)
-	go RunClient(ctx, clientConfig)
-
-	time.Sleep(time.Second * 2)
-	grpcConn, err := grpc.Dial("127.0.0.1:10000", grpc.WithInsecure())
-	common.Must(err)
-	server := api.NewTrojanServerServiceClient(grpcConn)
-
-	listUserStream, err := server.ListUsers(ctx, &api.ListUserRequest{})
-	common.Must(err)
-	defer listUserStream.CloseSend()
-	for {
-		resp, err := listUserStream.Recv()
-		if err != nil {
-			break
-		}
-		fmt.Println(resp.User.Hash)
-		fmt.Println(*resp.SpeedCurrent)
-		fmt.Println(*resp.SpeedLimit)
-	}
-	listUserStream.CloseSend()
-	setUserStream, err := server.SetUsers(ctx)
-	setUserStream.Send(&api.SetUserRequest{
-		User: &api.User{
-			Hash: common.SHA224String("apitest"),
-		},
-		SpeedLimit: &api.Speed{
-			UploadSpeed: 1024 * 1024 * 2,
-		},
-		Operation: api.SetUserRequest_Add,
-	})
-	resp3, err := setUserStream.Recv()
-	if err != nil || !resp3.Success {
-		t.Fail()
-	}
-	setUserStream.CloseSend()
-
-	go func() {
-		dialer, err := proxy.SOCKS5("tcp", "127.0.0.1:4444", nil, nil)
-		common.Must(err)
-		conn, err := dialer.Dial("tcp", "127.0.0.1:5000")
-		common.Must(err)
-		mbytes := 16
-		payload := GeneratePayload(1024 * 1024 * mbytes)
-		t1 := time.Now()
-		conn.Write(payload)
-		t2 := time.Now()
-		speed := float64(mbytes) / t2.Sub(t1).Seconds()
-		t.Log("single-thread link speed:", speed, "MiB/s")
-		conn.Close()
-	}()
-
-	time.Sleep(time.Second * 5)
-	listUserStream, err = server.ListUsers(ctx, &api.ListUserRequest{})
-	common.Must(err)
-	defer listUserStream.CloseSend()
-	for {
-		resp, err := listUserStream.Recv()
-		if err != nil {
-			break
-		}
-		fmt.Println(resp.User.Hash)
-		fmt.Println(resp.SpeedCurrent.UploadSpeed)
-		fmt.Println(resp.SpeedLimit.UploadSpeed)
-	}
-	listUserStream.CloseSend()
-	cancel()
 }
 
 func TestDNS(t *testing.T) {

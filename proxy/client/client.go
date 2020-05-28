@@ -28,9 +28,6 @@ type packetInfo struct {
 }
 
 type Client struct {
-	common.Runnable
-	proxy.Buildable
-
 	config      *conf.GlobalConfig
 	ctx         context.Context
 	cancel      context.CancelFunc
@@ -71,7 +68,7 @@ func (c *Client) handleSocksConn(conn io.ReadWriteCloser) {
 
 		//notify listenUDP to get ready for relaying udp packets
 		c.associated.Signal()
-		log.Debug("udp associated to", req)
+		log.Debug("UDP associated to", req)
 		if err := inboundConn.(protocol.NeedRespond).Respond(); err != nil {
 			log.Error("Failed to repsond")
 			return
@@ -94,6 +91,8 @@ func (c *Client) handleSocksConn(conn io.ReadWriteCloser) {
 		log.Error(err)
 		return
 	}
+	log.Info("Conn tunneling to", req)
+	log.Debug("Policy", policy)
 	if policy == router.Bypass {
 		outboundConn, err := direct.NewOutboundConnSession(c.ctx, req, c.config)
 		if err != nil {
