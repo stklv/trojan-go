@@ -2,22 +2,21 @@ package service
 
 import (
 	"context"
-	"crypto/tls"
+	"fmt"
+	"github.com/p4gefau1t/trojan-go/api"
+	"github.com/p4gefau1t/trojan-go/common"
+	"github.com/p4gefau1t/trojan-go/config"
+	"github.com/p4gefau1t/trojan-go/log"
+	"github.com/p4gefau1t/trojan-go/statistic"
+	"github.com/p4gefau1t/trojan-go/tunnel/trojan"
+	"google.golang.org/grpc"
 	"io"
 	"net"
-
-	"github.com/p4gefau1t/trojan-go/common"
-	"github.com/p4gefau1t/trojan-go/conf"
-	"github.com/p4gefau1t/trojan-go/log"
-	"github.com/p4gefau1t/trojan-go/proxy"
-	"github.com/p4gefau1t/trojan-go/stat"
-	grpc "google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 )
 
 type ServerAPI struct {
 	TrojanServerServiceServer
-	auth stat.Authenticator
+	auth statistic.Authenticator
 }
 
 func (s *ServerAPI) GetUsers(stream TrojanServerService_GetUsersServer) error {
@@ -166,28 +165,21 @@ func (s *ServerAPI) ListUsers(req *ListUsersRequest, stream TrojanServerService_
 	return nil
 }
 
-func RunServerAPI(ctx context.Context, config *conf.GlobalConfig, auth stat.Authenticator) error {
-	var server *grpc.Server
-	if config.API.APITLS {
-		creds := credentials.NewTLS(&tls.Config{
-			ClientAuth:   tls.RequireAndVerifyClientCert,
-			Certificates: config.TLS.KeyPair,
-			ClientCAs:    config.TLS.ClientCertPool,
-		})
-		server = grpc.NewServer(grpc.Creds(creds))
-	} else {
-		server = grpc.NewServer()
-		log.Warn("Using insecure API service. Please set \"api_tls\" to enable TLS-based gRPC service.")
+func RunServerAPI(ctx context.Context, auth statistic.Authenticator) error {
+	cfg := config.FromContext(ctx, Name).(*Config)
+	if !cfg.API.Enabled {
+		return nil
 	}
+	server := grpc.NewServer()
 	service := &ServerAPI{
 		auth: auth,
 	}
 	RegisterTrojanServerServiceServer(server, service)
-	listener, err := net.Listen("tcp", config.API.APIAddress.String())
+	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", cfg.API.APIHost, cfg.API.APIPort))
 	if err != nil {
 		return err
 	}
-	log.Info("Trojan-Go server-side API service is listening on", config.API.APIAddress)
+	log.Info("server-side api service is listening on", listener.Addr().String())
 	errChan := make(chan error, 1)
 	go func() {
 		errChan <- server.Serve(listener)
@@ -202,5 +194,5 @@ func RunServerAPI(ctx context.Context, config *conf.GlobalConfig, auth stat.Auth
 }
 
 func init() {
-	proxy.RegisterAPI(conf.Server, RunServerAPI)
+	api.RegisterHandler(trojan.Name+"_SERVER", RunServerAPI)
 }

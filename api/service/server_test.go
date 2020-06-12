@@ -3,28 +3,35 @@ package service
 import (
 	"context"
 	"fmt"
+	"github.com/p4gefau1t/trojan-go/common"
+	"github.com/p4gefau1t/trojan-go/config"
+	"github.com/p4gefau1t/trojan-go/statistic/memory"
+	"google.golang.org/grpc"
 	"testing"
 	"time"
-
-	"github.com/p4gefau1t/trojan-go/common"
-	"github.com/p4gefau1t/trojan-go/conf"
-	_ "github.com/p4gefau1t/trojan-go/log/golog"
-	"github.com/p4gefau1t/trojan-go/stat/memory"
-	"google.golang.org/grpc"
 )
 
 func TestServerAPI(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	auth, err := memory.NewMemoryAuth(ctx, &conf.GlobalConfig{})
-	common.Must(err)
-	go RunServerAPI(ctx, &conf.GlobalConfig{
-		API: conf.APIConfig{
-			APIAddress: common.NewAddress("127.0.0.1", 10000, "tcp"),
+	ctx = config.WithConfig(ctx, memory.Name,
+		&memory.Config{
+			Passwords: []string{},
+		})
+	port := common.PickPort("tcp", "127.0.0.1")
+	ctx = config.WithConfig(ctx, Name, &Config{
+		APIConfig{
+			Enabled: true,
+			APIHost: "127.0.0.1",
+			APIPort: port,
 		},
-	}, auth)
+	})
+	auth, err := memory.NewAuthenticator(ctx)
+	common.Must(err)
+	go RunServerAPI(ctx, auth)
+	time.Sleep(time.Second * 3)
 	common.Must(auth.AddUser("hash1234"))
 	_, user := auth.AuthUser("hash1234")
-	conn, err := grpc.Dial("127.0.0.1:10000", grpc.WithInsecure())
+	conn, err := grpc.Dial(fmt.Sprintf("127.0.0.1:%d", port), grpc.WithInsecure())
 	common.Must(err)
 	server := NewTrojanServerServiceClient(conn)
 	stream1, err := server.ListUsers(ctx, &ListUsersRequest{})

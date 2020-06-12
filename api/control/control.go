@@ -5,15 +5,15 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io"
-
 	"github.com/p4gefau1t/trojan-go/api/service"
 	"github.com/p4gefau1t/trojan-go/common"
 	"github.com/p4gefau1t/trojan-go/log"
+	"github.com/p4gefau1t/trojan-go/option"
 	"google.golang.org/grpc"
+	"io"
 )
 
-type apiOption struct {
+type apiController struct {
 	address *string
 	key     *string
 	hash    *string
@@ -27,15 +27,15 @@ type apiOption struct {
 	list               *bool
 	uploadSpeedLimit   *int
 	downloadSpeedLimit *int
-	iplimit            *int
+	ipLimit            *int
 	ctx                context.Context
 }
 
-func (apiOption) Name() string {
+func (apiController) Name() string {
 	return "api"
 }
 
-func (o *apiOption) listUsers(apiClient service.TrojanServerServiceClient) error {
+func (o *apiController) listUsers(apiClient service.TrojanServerServiceClient) error {
 	stream, err := apiClient.ListUsers(o.ctx, &service.ListUsersRequest{})
 	if err != nil {
 		return err
@@ -58,7 +58,7 @@ func (o *apiOption) listUsers(apiClient service.TrojanServerServiceClient) error
 	return nil
 }
 
-func (o *apiOption) getUsers(apiClient service.TrojanServerServiceClient) error {
+func (o *apiController) getUsers(apiClient service.TrojanServerServiceClient) error {
 	stream, err := apiClient.GetUsers(o.ctx)
 	if err != nil {
 		return err
@@ -83,7 +83,7 @@ func (o *apiOption) getUsers(apiClient service.TrojanServerServiceClient) error 
 	return nil
 }
 
-func (o *apiOption) setUsers(apiClient service.TrojanServerServiceClient) error {
+func (o *apiController) setUsers(apiClient service.TrojanServerServiceClient) error {
 	stream, err := apiClient.SetUsers(o.ctx)
 	if err != nil {
 		return err
@@ -95,7 +95,7 @@ func (o *apiOption) setUsers(apiClient service.TrojanServerServiceClient) error 
 			Password: *o.password,
 			Hash:     *o.hash,
 		},
-		IpLimit: int32(*o.iplimit),
+		IpLimit: int32(*o.ipLimit),
 		SpeedLimit: &service.Speed{
 			UploadSpeed:   uint64(*o.uploadSpeedLimit),
 			DownloadSpeed: uint64(*o.downloadSpeedLimit),
@@ -127,7 +127,7 @@ func (o *apiOption) setUsers(apiClient service.TrojanServerServiceClient) error 
 	return nil
 }
 
-func (o *apiOption) Handle() error {
+func (o *apiController) Handle() error {
 	if *o.cmd == "" {
 		return common.NewError("")
 	}
@@ -155,17 +155,17 @@ func (o *apiOption) Handle() error {
 			log.Error(err)
 		}
 	default:
-		log.Error("Unknown command " + *o.cmd)
+		log.Error("unknown command " + *o.cmd)
 	}
 	return nil
 }
 
-func (o *apiOption) Priority() int {
+func (o *apiController) Priority() int {
 	return 50
 }
 
 func init() {
-	common.RegisterOptionHandler(&apiOption{
+	option.RegisterHandler(&apiController{
 		cmd:                flag.String("api", "", "Connect to a Trojan-Go API service. \"-api add/get/list\""),
 		address:            flag.String("api-addr", "127.0.0.1:10000", "Address of Trojan-Go API service"),
 		password:           flag.String("target-password", "", "Password of the target user"),
@@ -175,7 +175,7 @@ func init() {
 		modify:             flag.Bool("modify-profile", false, "Modify an existing profile with API"),
 		uploadSpeedLimit:   flag.Int("upload-speed-limit", 0, "Limit the upload speed with API"),
 		downloadSpeedLimit: flag.Int("download-speed-limit", 0, "Limit the download speed with API"),
-		iplimit:            flag.Int("ip-limit", 0, "Limit the number of IP with API"),
+		ipLimit:            flag.Int("ip-limit", 0, "Limit the number of IP with API"),
 		ctx:                context.Background(),
 	})
 }

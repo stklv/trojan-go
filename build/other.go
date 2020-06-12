@@ -1,9 +1,8 @@
-// +build full other
+// +build other full
 
 package build
 
 import (
-	_ "github.com/p4gefau1t/trojan-go/daemon"
 	_ "github.com/p4gefau1t/trojan-go/easy"
-	_ "github.com/p4gefau1t/trojan-go/version"
+	_ "github.com/p4gefau1t/trojan-go/log/golog"
 )
