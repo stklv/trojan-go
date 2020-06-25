@@ -3,22 +3,23 @@ package websocket
 import (
 	"bufio"
 	"context"
+	"math/rand"
+	"net"
+	"net/http"
+	"strings"
+	"time"
+
 	"github.com/p4gefau1t/trojan-go/common"
 	"github.com/p4gefau1t/trojan-go/config"
 	"github.com/p4gefau1t/trojan-go/log"
 	"github.com/p4gefau1t/trojan-go/redirector"
 	"github.com/p4gefau1t/trojan-go/tunnel"
 	"golang.org/x/net/websocket"
-	"math/rand"
-	"net"
-	"net/http"
-	"strings"
-	"time"
 )
 
 // Fake response writer
 // Websocket ServeHTTP method uses Hijack method to get the ReadWriter
-type fakeHttpResponseWriter struct {
+type fakeHTTPResponseWriter struct {
 	http.Hijacker
 	http.ResponseWriter
 
@@ -26,7 +27,7 @@ type fakeHttpResponseWriter struct {
 	Conn       net.Conn
 }
 
-func (w *fakeHttpResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+func (w *fakeHTTPResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	return w.Conn, w.ReadWriter, nil
 }
 
@@ -66,7 +67,9 @@ func (s *Server) AcceptConn(tunnel.Tunnel) (tunnel.Conn, error) {
 	req, err := http.ReadRequest(rw.Reader)
 
 	if err != nil {
+		log.Debug("invalid http request")
 		rewindConn.Rewind()
+		rewindConn.StopBuffering()
 		s.redir.Redirect(&redirector.Redirection{
 			InboundConn: rewindConn,
 			RedirectTo:  s.redirAddr,
@@ -74,7 +77,9 @@ func (s *Server) AcceptConn(tunnel.Tunnel) (tunnel.Conn, error) {
 		return nil, common.NewError("not a valid http request: " + conn.RemoteAddr().String()).Base(err)
 	}
 	if strings.ToLower(req.Header.Get("Upgrade")) != "websocket" || req.URL.Path != s.path {
+		log.Debug("invalid http websocket handshake request")
 		rewindConn.Rewind()
+		rewindConn.StopBuffering()
 		s.redir.Redirect(&redirector.Redirection{
 			InboundConn: rewindConn,
 			RedirectTo:  s.redirAddr,
@@ -107,7 +112,7 @@ func (s *Server) AcceptConn(tunnel.Tunnel) (tunnel.Conn, error) {
 		},
 	}
 
-	respWriter := &fakeHttpResponseWriter{
+	respWriter := &fakeHTTPResponseWriter{
 		Conn:       conn,
 		ReadWriter: rw,
 	}
@@ -142,6 +147,14 @@ func NewServer(ctx context.Context, underlay tunnel.Server) (*Server, error) {
 		if !strings.HasPrefix(cfg.Websocket.Path, "/") {
 			return nil, common.NewError("websocket path must start with \"/\"")
 		}
+	}
+	if cfg.RemoteHost == "" {
+		log.Warn("empty websocket redirection hostname")
+		cfg.RemoteHost = cfg.Websocket.Hostname
+	}
+	if cfg.RemotePort == 0 {
+		log.Warn("empty websocket redirection port")
+		cfg.RemotePort = 80
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	log.Debug("websocket server created")

@@ -4,6 +4,9 @@ import (
 	"context"
 	"io"
 	"strings"
+	"sync"
+
+	"github.com/p4gefau1t/trojan-go/log"
 
 	"github.com/p4gefau1t/trojan-go/common"
 )
@@ -16,8 +19,9 @@ type TrafficMeter interface {
 	ResetTraffic()
 	GetAndResetTraffic() (sent, recv uint64)
 	GetSpeed() (sent, recv uint64)
-	SetSpeedLimit(send, recv int)
-	GetSpeedLimit() (send, recv int)
+	SetSpeedLimit(sent, recv int)
+	GetSpeedLimit() (sent, recv int)
+	SetTraffic(sent, recv uint64)
 }
 
 type IPRecorder interface {
@@ -45,14 +49,18 @@ type Creator func(ctx context.Context) (Authenticator, error)
 
 var authCreators = map[string]Creator{}
 var createdAuth = map[context.Context]Authenticator{}
+var createdAuthLock = sync.Mutex{}
 
 func RegisterAuthenticatorCreator(name string, creator Creator) {
 	authCreators[name] = creator
 }
 
 func NewAuthenticator(ctx context.Context, name string) (Authenticator, error) {
-	// one authenticator for each context
+	// allocate a unique authenticator for each context
+	createdAuthLock.Lock() // avoid concurrent map read/write
+	defer createdAuthLock.Unlock()
 	if auth, found := createdAuth[ctx]; found {
+		log.Debug("authenticator has been created:", name)
 		return auth, nil
 	}
 	creator, found := authCreators[strings.ToUpper(name)]

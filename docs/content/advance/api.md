@@ -1,8 +1,10 @@
 ---
 title: "使用API动态管理用户"
 draft: false
-weight: 7
+weight: 10
 ---
+
+### 注意，Trojan-GFW版本不支持这个特性
 
 Trojan-Go使用gRPC提供了一组API，API支持以下功能：
 

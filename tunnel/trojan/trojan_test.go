@@ -1,16 +1,21 @@
 package trojan
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
+	"net"
 	"testing"
 
+	"github.com/p4gefau1t/trojan-go/common"
+	"github.com/p4gefau1t/trojan-go/config"
+	_ "github.com/p4gefau1t/trojan-go/log/golog"
+	"github.com/p4gefau1t/trojan-go/redirector"
+	"github.com/p4gefau1t/trojan-go/statistic"
 	"github.com/p4gefau1t/trojan-go/test/util"
 	"github.com/p4gefau1t/trojan-go/tunnel"
-	"github.com/p4gefau1t/trojan-go/tunnel/raw"
-
-	"github.com/p4gefau1t/trojan-go/common"
-	"github.com/p4gefau1t/trojan-go/statistic"
+	"github.com/p4gefau1t/trojan-go/tunnel/transport"
 )
 
 type MockUser struct {
@@ -46,33 +51,42 @@ func (*MockAuth) ListUsers() []statistic.User {
 }
 
 func TestTrojan(t *testing.T) {
-	addr := tunnel.NewAddressFromHostPort("tcp", "127.0.0.1", common.PickPort("tcp", "127.0.0.1"))
-	tcpClient := &raw.FixedClient{
-		FixedAddr: addr,
+	port := common.PickPort("tcp", "127.0.0.1")
+	transportConfig := &transport.Config{
+		LocalHost:  "127.0.0.1",
+		LocalPort:  port,
+		RemoteHost: "127.0.0.1",
+		RemotePort: port,
 	}
-	tcpServer, err := raw.NewServer(addr)
-	ctx := context.Background()
+	ctx := config.WithConfig(context.Background(), transport.Name, transportConfig)
+	tcpClient, err := transport.NewClient(ctx, nil)
+	common.Must(err)
+	tcpServer, err := transport.NewServer(ctx, nil)
+	common.Must(err)
+	ctx, cancel := context.WithCancel(ctx)
 	s := &Server{
 		underlay:   tcpServer,
 		auth:       &MockAuth{},
-		ctx:        ctx,
-		redirAddr:  nil,
+		redirAddr:  tunnel.NewAddressFromHostPort("tcp", "127.0.0.1", util.EchoPort),
 		connChan:   make(chan tunnel.Conn, 32),
 		muxChan:    make(chan tunnel.Conn, 32),
 		packetChan: make(chan tunnel.PacketConn, 32),
+		ctx:        ctx,
+		cancel:     cancel,
+		redir:      redirector.NewRedirector(ctx),
 	}
 	go s.acceptLoop()
 	c := &Client{
 		underlay: tcpClient,
 		ctx:      ctx,
-		auth:     &MockAuth{},
+		user:     &MockUser{},
 	}
 
 	conn1, err := c.DialConn(&tunnel.Address{
 		DomainName:  "example.com",
 		AddressType: tunnel.DomainName,
 	}, nil)
-	common.Must2(conn1.Write([]byte("12345678")))
+	common.Must2(conn1.Write([]byte("87654321")))
 	conn2, err := s.AcceptConn(nil)
 	buf := [8]byte{}
 	conn2.Read(buf[:])
@@ -100,4 +114,24 @@ func TestTrojan(t *testing.T) {
 	if !util.CheckPacketOverConn(packet1, packet2) {
 		t.Fail()
 	}
+
+	//redirecting
+	conn, err := net.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+	common.Must(err)
+	sendBuf := util.GeneratePayload(1024)
+	recvBuf := [1024]byte{}
+	common.Must2(conn.Write(sendBuf))
+	common.Must2(io.ReadFull(conn, recvBuf[:]))
+	if !bytes.Equal(sendBuf, recvBuf[:]) {
+		fmt.Println(sendBuf)
+		fmt.Println(recvBuf[:])
+		t.Fail()
+	}
+	conn1.Close()
+	conn2.Close()
+	packet1.Close()
+	packet2.Close()
+	conn.Close()
+	c.Close()
+	s.Close()
 }

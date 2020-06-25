@@ -3,25 +3,32 @@ package socks
 import (
 	"context"
 	"fmt"
-	"github.com/p4gefau1t/trojan-go/common"
-	"github.com/p4gefau1t/trojan-go/config"
-	"github.com/p4gefau1t/trojan-go/test/util"
-	"github.com/p4gefau1t/trojan-go/tunnel"
-	"golang.org/x/net/proxy"
 	"net"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/p4gefau1t/trojan-go/common"
+	"github.com/p4gefau1t/trojan-go/config"
+	"github.com/p4gefau1t/trojan-go/test/util"
+	"github.com/p4gefau1t/trojan-go/tunnel"
+	"github.com/p4gefau1t/trojan-go/tunnel/transport"
+	"golang.org/x/net/proxy"
 )
 
 func TestSocks(t *testing.T) {
 	port := common.PickPort("tcp", "127.0.0.1")
-	ctx := config.WithConfig(context.Background(), Name, &Config{
+	ctx := config.WithConfig(context.Background(), transport.Name, &transport.Config{
 		LocalHost: "127.0.0.1",
 		LocalPort: port,
 	})
+	ctx = config.WithConfig(ctx, Name, &Config{
+		UDPTimeout: 30,
+	})
+	tcpServer, err := transport.NewServer(ctx, nil)
+	common.Must(err)
 	addr := tunnel.NewAddressFromHostPort("tcp", "127.0.0.1", port)
-	s, err := NewServer(ctx, nil)
+	s, err := NewServer(ctx, tcpServer)
 	common.Must(err)
 	socksClient, err := proxy.SOCKS5("tcp", addr.String(), nil, proxy.Direct)
 	common.Must(err)

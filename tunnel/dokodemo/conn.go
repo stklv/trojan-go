@@ -2,8 +2,9 @@ package dokodemo
 
 import (
 	"context"
-	"io"
 	"net"
+
+	"github.com/p4gefau1t/trojan-go/common"
 
 	"github.com/p4gefau1t/trojan-go/tunnel"
 )
@@ -58,15 +59,15 @@ func (c *PacketConn) ReadWithMetadata(p []byte) (int, *tunnel.Metadata, error) {
 		n := copy(p, payload)
 		return n, c.M, nil
 	case <-c.Ctx.Done():
-		return 0, nil, io.EOF
+		return 0, nil, common.NewError("dokodemo packet conn closed")
 	}
 }
 
 func (c *PacketConn) WriteWithMetadata(p []byte, m *tunnel.Metadata) (int, error) {
 	select {
 	case c.Output <- p:
+		return len(p), nil
 	case <-c.Ctx.Done():
-		return 0, io.EOF
+		return 0, common.NewError("dokodemo packet conn failed to write")
 	}
-	return len(p), nil
 }

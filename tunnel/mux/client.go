@@ -125,8 +125,7 @@ func (c *Client) newMuxClient() (*smuxClientInfo, error) {
 	return info, nil
 }
 
-func (c *Client) DialConn(addr *tunnel.Address, _ tunnel.Tunnel) (tunnel.Conn, error) {
-
+func (c *Client) DialConn(*tunnel.Address, tunnel.Tunnel) (tunnel.Conn, error) {
 	createNewConn := func(info *smuxClientInfo) (tunnel.Conn, error) {
 		rwc, err := info.client.Open()
 		info.lastActiveTime = time.Now()
@@ -172,7 +171,7 @@ func NewClient(ctx context.Context, underlay tunnel.Client) (*Client, error) {
 	client := &Client{
 		underlay:    underlay,
 		concurrency: clientConfig.Mux.Concurrency,
-		timeout:     time.Duration(clientConfig.Mux.Timeout) * time.Second,
+		timeout:     time.Duration(clientConfig.Mux.IdleTimeout) * time.Second,
 		ctx:         ctx,
 		cancel:      cancel,
 		clientPool:  make(map[muxID]*smuxClientInfo),

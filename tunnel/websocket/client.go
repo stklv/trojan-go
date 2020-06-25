@@ -2,12 +2,13 @@ package websocket
 
 import (
 	"context"
+	"strings"
+
 	"github.com/p4gefau1t/trojan-go/common"
 	"github.com/p4gefau1t/trojan-go/config"
 	"github.com/p4gefau1t/trojan-go/log"
 	"github.com/p4gefau1t/trojan-go/tunnel"
 	"golang.org/x/net/websocket"
-	"strings"
 )
 
 type Client struct {
@@ -48,6 +49,10 @@ func NewClient(ctx context.Context, underlay tunnel.Client) (*Client, error) {
 	cfg := config.FromContext(ctx, Name).(*Config)
 	if !strings.HasPrefix(cfg.Websocket.Path, "/") {
 		return nil, common.NewError("websocket path must start with \"/\"")
+	}
+	if cfg.Websocket.Hostname == "" {
+		cfg.Websocket.Hostname = cfg.RemoteHost
+		log.Warn("empty websocket hostname")
 	}
 	log.Debug("websocket client created")
 	return &Client{

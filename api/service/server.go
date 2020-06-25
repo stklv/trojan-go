@@ -3,6 +3,9 @@ package service
 import (
 	"context"
 	"fmt"
+	"io"
+	"net"
+
 	"github.com/p4gefau1t/trojan-go/api"
 	"github.com/p4gefau1t/trojan-go/common"
 	"github.com/p4gefau1t/trojan-go/config"
@@ -10,8 +13,6 @@ import (
 	"github.com/p4gefau1t/trojan-go/statistic"
 	"github.com/p4gefau1t/trojan-go/tunnel/trojan"
 	"google.golang.org/grpc"
-	"io"
-	"net"
 )
 
 type ServerAPI struct {
@@ -30,7 +31,7 @@ func (s *ServerAPI) GetUsers(stream TrojanServerService_GetUsersServer) error {
 			return err
 		}
 		if req.User == nil {
-			return common.NewError("User is unspecified")
+			return common.NewError("user is unspecified")
 		}
 		if req.User.Hash == "" {
 			req.User.Hash = common.SHA224String(req.User.Password)
@@ -96,7 +97,7 @@ func (s *ServerAPI) SetUsers(stream TrojanServerService_SetUsersServer) error {
 			if req.SpeedLimit != nil {
 				valid, user := s.auth.AuthUser(req.User.Hash)
 				if !valid {
-					return common.NewError("Failed to add new user")
+					return common.NewError("failed to add new user")
 				}
 				user.SetSpeedLimit(int(req.SpeedLimit.DownloadSpeed), int(req.SpeedLimit.UploadSpeed))
 			}
@@ -105,13 +106,16 @@ func (s *ServerAPI) SetUsers(stream TrojanServerService_SetUsersServer) error {
 		case SetUsersRequest_Modify:
 			valid, user := s.auth.AuthUser(req.User.Hash)
 			if !valid {
-				err = common.NewError("Invalid user " + req.User.Hash)
+				err = common.NewError("invalid user " + req.User.Hash)
 			} else {
 				if req.SpeedLimit.DownloadSpeed > 0 || req.SpeedLimit.UploadSpeed > 0 {
 					user.SetSpeedLimit(int(req.SpeedLimit.DownloadSpeed), int(req.SpeedLimit.UploadSpeed))
 				}
 				if req.IpLimit > 0 {
 					user.SetIPLimit(int(req.IpLimit))
+				}
+				if req.TrafficTotal.DownloadTraffic > 0 || req.TrafficTotal.UploadTraffic > 0 {
+					user.SetTraffic(req.TrafficTotal.DownloadTraffic, req.TrafficTotal.UploadTraffic)
 				}
 			}
 		}

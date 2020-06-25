@@ -3,12 +3,13 @@ package service
 import (
 	"context"
 	"fmt"
+	"testing"
+	"time"
+
 	"github.com/p4gefau1t/trojan-go/common"
 	"github.com/p4gefau1t/trojan-go/config"
 	"github.com/p4gefau1t/trojan-go/statistic/memory"
 	"google.golang.org/grpc"
-	"testing"
-	"time"
 )
 
 func TestServerAPI(t *testing.T) {
@@ -104,6 +105,10 @@ func TestServerAPI(t *testing.T) {
 		SpeedLimit: &Speed{
 			DownloadSpeed: 5000,
 			UploadSpeed:   3000,
+		},
+		TrafficTotal: &Traffic{
+			DownloadTraffic: 1,
+			UploadTraffic:   1,
 		},
 	})
 	go func() {

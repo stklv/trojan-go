@@ -1,18 +1,18 @@
-package raw
+package freedom
 
 import (
 	"context"
 	"crypto/tls"
-	"github.com/p4gefau1t/trojan-go/common"
-	"github.com/p4gefau1t/trojan-go/config"
-	"github.com/p4gefau1t/trojan-go/log"
-	"golang.org/x/net/proxy"
 	"net"
 	"net/url"
 	"strconv"
 	"time"
 
+	"github.com/p4gefau1t/trojan-go/common"
+	"github.com/p4gefau1t/trojan-go/config"
+	"github.com/p4gefau1t/trojan-go/log"
 	"github.com/p4gefau1t/trojan-go/tunnel"
+	"golang.org/x/net/proxy"
 )
 
 type Client struct {
@@ -21,6 +21,7 @@ type Client struct {
 	keepAlive    bool
 	dns          []string
 	ctx          context.Context
+	cancel       context.CancelFunc
 	forwardProxy bool
 	proxyAddr    *tunnel.Address
 	username     string
@@ -117,8 +118,8 @@ func (c *Client) DialConn(addr *tunnel.Address, t tunnel.Tunnel) (tunnel.Conn, e
 			Conn: socksConn,
 		}, nil
 	}
-
-	tcpConn, err := net.Dial(network, addr.String())
+	dialer := new(net.Dialer)
+	tcpConn, err := dialer.DialContext(c.ctx, network, addr.String())
 	if err != nil {
 		return nil, err
 	}
@@ -137,7 +138,7 @@ func (c *Client) DialPacket(tunnel.Tunnel) (tunnel.PacketConn, error) {
 	}
 	udpConn, err := net.ListenPacket(network, "")
 	if err != nil {
-		return nil, err
+		return nil, common.NewError("freedom failed to listen udp socket").Base(err)
 	}
 	return &PacketConn{
 		UDPConn: udpConn.(*net.UDPConn),
@@ -145,14 +146,19 @@ func (c *Client) DialPacket(tunnel.Tunnel) (tunnel.PacketConn, error) {
 }
 
 func (c *Client) Close() error {
+	c.cancel()
 	return nil
 }
 
-func NewClient(ctx context.Context, client tunnel.Client) (*Client, error) {
+func NewClient(ctx context.Context, _ tunnel.Client) (*Client, error) {
 	// TODO implement dns
+	// TODO socks5 udp
 	cfg := config.FromContext(ctx, Name).(*Config)
 	addr := tunnel.NewAddressFromHostPort("tcp", cfg.ForwardProxy.ProxyHost, cfg.ForwardProxy.ProxyPort)
+	ctx, cancel := context.WithCancel(ctx)
 	return &Client{
+		ctx:          ctx,
+		cancel:       cancel,
 		dns:          cfg.DNS,
 		noDelay:      cfg.TCP.NoDelay,
 		keepAlive:    cfg.TCP.KeepAlive,
@@ -160,14 +166,4 @@ func NewClient(ctx context.Context, client tunnel.Client) (*Client, error) {
 		forwardProxy: cfg.ForwardProxy.Enabled,
 		proxyAddr:    addr,
 	}, nil
-}
-
-// FixedClient will always dial to the FixedAddr
-type FixedClient struct {
-	FixedAddr *tunnel.Address
-	Client
-}
-
-func (c *FixedClient) DialConn(addr *tunnel.Address, t tunnel.Tunnel) (tunnel.Conn, error) {
-	return c.Client.DialConn(c.FixedAddr, t)
 }

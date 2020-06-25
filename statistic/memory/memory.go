@@ -6,6 +6,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/p4gefau1t/trojan-go/log"
+
 	"github.com/p4gefau1t/trojan-go/config"
 
 	"github.com/p4gefau1t/trojan-go/common"
@@ -123,6 +125,11 @@ func (u *User) Hash() string {
 	return u.hash
 }
 
+func (u *User) SetTraffic(send, recv uint64) {
+	atomic.StoreUint64(&u.sent, send)
+	atomic.StoreUint64(&u.recv, recv)
+}
+
 func (u *User) GetTraffic() (uint64, uint64) {
 	return atomic.LoadUint64(&u.sent), atomic.LoadUint64(&u.recv)
 }
@@ -204,7 +211,7 @@ func (a *Authenticator) DelUser(hash string) error {
 	defer a.Unlock()
 	meter, found := a.users[hash]
 	if !found {
-		return common.NewError("Hash " + hash + "is not exist")
+		return common.NewError("hash " + hash + " not found")
 	}
 	meter.Close()
 	delete(a.users, hash)
@@ -235,6 +242,7 @@ func NewAuthenticator(ctx context.Context) (statistic.Authenticator, error) {
 		hash := common.SHA224String(password)
 		u.AddUser(hash)
 	}
+	log.Debug("memory authenticator created")
 	return u, nil
 }
 

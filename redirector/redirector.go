@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"net"
+	"reflect"
 
 	"github.com/p4gefau1t/trojan-go/common"
 	"github.com/p4gefau1t/trojan-go/log"
@@ -42,6 +43,10 @@ func (r *Redirector) worker() {
 				if redirection.Dial == nil {
 					redirection.Dial = defaultDial
 				}
+				if reflect.ValueOf(redirection.RedirectTo).IsNil() {
+					log.Error("nil redirection addr")
+					return
+				}
 				log.Warn("redirecting connection from", redirection.InboundConn.RemoteAddr(), "to", redirection.RedirectTo.String())
 				outboundConn, err := redirection.Dial(redirection.RedirectTo)
 				if err != nil {
@@ -58,7 +63,10 @@ func (r *Redirector) worker() {
 				go copyConn(redirection.InboundConn, outboundConn)
 				select {
 				case err := <-errChan:
-					log.Info("redirection done:", err)
+					if err != nil {
+						log.Error(common.NewError("failed to redirect").Base(err))
+					}
+					log.Info("redirection done")
 				case <-r.ctx.Done():
 					log.Debug("exiting")
 					return

@@ -4,16 +4,17 @@ package tproxy
 
 import (
 	"context"
+	"io"
+	"net"
+	"sync"
+	"time"
+
 	"github.com/LiamHaworth/go-tproxy"
 	"github.com/p4gefau1t/trojan-go/common"
 	"github.com/p4gefau1t/trojan-go/config"
 	"github.com/p4gefau1t/trojan-go/log"
 	"github.com/p4gefau1t/trojan-go/tunnel"
 	"github.com/p4gefau1t/trojan-go/tunnel/dokodemo"
-	"io"
-	"net"
-	"sync"
-	"time"
 )
 
 const MaxPacketSize = 1024 * 8
@@ -99,16 +100,28 @@ func (s *Server) packetDispatchLoop() {
 		}
 		s.mapping[src.String()] = conn
 		s.mappingLock.Unlock()
-
 		conn.Input <- buf[:n]
 		s.packetChan <- conn
 
 		go func(conn *dokodemo.PacketConn) {
 			defer conn.Close()
+			back, err := tproxy.DialUDP(
+				"udp",
+				&net.UDPAddr{
+					IP:   conn.M.IP,
+					Port: conn.M.Port,
+				},
+				conn.Source.(*net.UDPAddr),
+			)
+			if err != nil {
+				log.Error(common.NewError("failed to dial tproxy udp").Base(err))
+				return
+			}
+			defer back.Close()
 			for {
 				select {
 				case payload := <-conn.Output:
-					_, err := s.udpListener.WriteTo(payload, conn.Source)
+					_, err := back.Write(payload)
 					if err != nil {
 						log.Error(common.NewError("tproxy udp write error").Base(err))
 						return
@@ -131,7 +144,7 @@ func (s *Server) packetDispatchLoop() {
 func (s *Server) AcceptPacket(tunnel.Tunnel) (tunnel.PacketConn, error) {
 	select {
 	case conn := <-s.packetChan:
-		log.Info("tproxy packet conn accpeted")
+		log.Info("tproxy packet conn accepted")
 		return conn, nil
 	case <-s.ctx.Done():
 		return nil, io.EOF
@@ -172,7 +185,7 @@ func NewServer(ctx context.Context, _ tunnel.Server) (*Server, error) {
 		packetChan:  make(chan tunnel.PacketConn, 32),
 	}
 	go server.packetDispatchLoop()
-	log.Info("tproxy server listening on", tcpListener.Addr(), "(udp/tcp)")
+	log.Info("tproxy server listening on", tcpListener.Addr(), "(tcp)", udpListener.LocalAddr(), "(udp)")
 	log.Debug("tproxy server created")
 	return server, nil
 }

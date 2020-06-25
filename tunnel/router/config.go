@@ -1,9 +1,11 @@
 package router
 
 import (
+	"os"
+
 	"github.com/p4gefau1t/trojan-go/common"
 	"github.com/p4gefau1t/trojan-go/config"
-	"os"
+	"github.com/p4gefau1t/trojan-go/log"
 )
 
 type Config struct {
@@ -34,6 +36,7 @@ func init() {
 		if path := os.Getenv("TROJAN_GO_LOCATION_ASSET"); path != "" {
 			cfg.Router.GeoIPFilename = path + "/geoip.dat"
 			cfg.Router.GeoSiteFilename = path + "/geosite.dat"
+			log.Debug("env set:", path)
 		}
 		return cfg
 	})

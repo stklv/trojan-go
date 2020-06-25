@@ -2,12 +2,14 @@ package fingerprint
 
 import (
 	"crypto/tls"
+
 	"github.com/p4gefau1t/trojan-go/common"
 	"github.com/p4gefau1t/trojan-go/log"
 	. "github.com/refraction-networking/utls"
 )
 
 func GetClientHelloSpec(name string, websocket bool) (*ClientHelloSpec, error) {
+	// TODO fix websocket
 	var spec *ClientHelloSpec
 	switch name {
 	case "chrome":
