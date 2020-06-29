@@ -188,6 +188,20 @@ client.json
 }
 ```
 
+可以使用更简明易读的YAML语法进行配置，下面是一个客户端的例子，与上面的client.json等价
+
+client.yaml
+
+```yaml
+run-type: client
+local-addr: 127.0.0.1
+local-port: 1080
+remote-addr: www.your_awesome_domain_name.com
+remote-port: 443
+password:
+  - your_awesome_password
+```
+
 <a name="WebSocket"></a>
 
 ### WebSocket
@@ -326,9 +340,18 @@ Trojan-Go支持可插拔的传输层插件，并支持Shadowsocks [SIP003](https
 
 确保你的Go版本 >= 1.14，推荐使用snap安装Go保持与上游同步。
 
+下面的命令使用```make```进行编译
+
 ```shell
 git clone https://github.com/p4gefau1t/trojan-go.git
 cd trojan-go
+make
+make install #安装systemd服务等，可选
+```
+
+你也可以使用Go自行编译和安装
+
+```shell
 go build -tags "full"
 ```
 
