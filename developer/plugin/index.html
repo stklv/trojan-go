@@ -3,11 +3,11 @@
 <head><meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>编译和自定义Trojan-Go - Trojan-Go Docs</title>
+<title>可插拔传输层插件开发 - Trojan-Go Docs</title>
 <meta name="description" content="An unidentifiable mechanism that helps you bypass GFW.">
 <meta name="generator" content="Hugo 0.69.2" />
 <link href="https://p4gefau1t.github.io/trojan-goindex.xml" rel="alternate" type="application/rss+xml">
-<link rel="canonical" href="https://p4gefau1t.github.io/trojan-go/developer/build/">
+<link rel="canonical" href="https://p4gefau1t.github.io/trojan-go/developer/plugin/">
 <link rel="stylesheet" href="https://p4gefau1t.github.io/trojan-go/css/theme.min.css">
 <script src="https://use.fontawesome.com/releases/v5.0.6/js/all.js"></script>
 <link rel="stylesheet" href="https://p4gefau1t.github.io/trojan-go/css/chroma.min.css">
@@ -16,21 +16,21 @@
 <script src="https://p4gefau1t.github.io/trojan-go/js/bundle.js"></script><style>
 :root {}
 </style>
-<meta property="og:title" content="编译和自定义Trojan-Go" />
-<meta property="og:description" content="编译需要Go版本号高于1.14.x，请在编译前确认你的编译器版本。推荐使用snap安装和更新go。 编译方式非常简单，可以使用Makefile" />
+<meta property="og:title" content="可插拔传输层插件开发" />
+<meta property="og:description" content="Trojan-Go鼓励开发传输层插件，以丰富协议类型，增加与GFW对抗的战略纵深。 传输层插件的作用，是替代tansport隧道的TLS进行传" />
 <meta property="og:type" content="article" />
-<meta property="og:url" content="https://p4gefau1t.github.io/trojan-go/developer/build/" />
+<meta property="og:url" content="https://p4gefau1t.github.io/trojan-go/developer/plugin/" />
 <meta property="og:image" content="https://p4gefau1t.github.io/trojan-go/images/og-image.png"/>
 <meta property="og:site_name" content="Trojan-Go Docs" />
 <meta name="twitter:card" content="summary_large_image"/>
 <meta name="twitter:image" content="https://p4gefau1t.github.io/trojan-go/images/og-image.png"/>
 
-<meta name="twitter:title" content="编译和自定义Trojan-Go"/>
-<meta name="twitter:description" content="编译需要Go版本号高于1.14.x，请在编译前确认你的编译器版本。推荐使用snap安装和更新go。 编译方式非常简单，可以使用Makefile"/>
-<meta itemprop="name" content="编译和自定义Trojan-Go">
-<meta itemprop="description" content="编译需要Go版本号高于1.14.x，请在编译前确认你的编译器版本。推荐使用snap安装和更新go。 编译方式非常简单，可以使用Makefile">
+<meta name="twitter:title" content="可插拔传输层插件开发"/>
+<meta name="twitter:description" content="Trojan-Go鼓励开发传输层插件，以丰富协议类型，增加与GFW对抗的战略纵深。 传输层插件的作用，是替代tansport隧道的TLS进行传"/>
+<meta itemprop="name" content="可插拔传输层插件开发">
+<meta itemprop="description" content="Trojan-Go鼓励开发传输层插件，以丰富协议类型，增加与GFW对抗的战略纵深。 传输层插件的作用，是替代tansport隧道的TLS进行传">
 
-<meta itemprop="wordCount" content="403">
+<meta itemprop="wordCount" content="1072">
 <meta itemprop="image" content="https://p4gefau1t.github.io/trojan-go/images/og-image.png"/>
 
 
@@ -50,27 +50,44 @@
 </nav>
 </div>
 <div class="content-container">
-<main><h1>编译和自定义Trojan-Go</h1>
-<p>编译需要Go版本号高于1.14.x，请在编译前确认你的编译器版本。推荐使用snap安装和更新go。</p>
-<p>编译方式非常简单，可以使用Makefile预设步骤进行编译：</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">make
-make install <span style="color:#75715e">#安装systemd服务等，可选</span>
-</code></pre></div><p>或者直接使用Go进行编译：</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">go build -tags <span style="color:#e6db74">&#34;full&#34;</span> <span style="color:#75715e">#编译完整版本</span>
-</code></pre></div><p>可以通过指定GOOS和GOARCH环境变量，指定交叉编译的目标操作系统和架构，例如</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">GOOS<span style="color:#f92672">=</span>windows GOARCH<span style="color:#f92672">=</span><span style="color:#ae81ff">386</span> go build -tags <span style="color:#e6db74">&#34;full&#34;</span> <span style="color:#75715e">#windows x86</span>
-GOOS<span style="color:#f92672">=</span>linux GOARCH<span style="color:#f92672">=</span>arm64 go build -tags <span style="color:#e6db74">&#34;full&#34;</span> <span style="color:#75715e">#linux arm64</span>
-</code></pre></div><p>你可以使用release.sh进行批量的多个平台的交叉编译，release版本使用了这个脚本进行构建。</p>
-<p>Trojan-Go的大多数模块是可插拔的。在build文件夹下可以找到各个模块的导入声明。如果你不需要其中某些功能，或者需要缩小可执行文件的体积，可以使用构建标签(tags)进行模块的自定义，例如</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">go build -tags <span style="color:#e6db74">&#34;full&#34;</span> <span style="color:#75715e">#编译所有模块</span>
-go build -tags <span style="color:#e6db74">&#34;client&#34;</span> -ldflags<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;-s -w&#34;</span> <span style="color:#75715e">#只有客户端功能，且去除符号表缩小体积</span>
-go build -tags <span style="color:#e6db74">&#34;server mysql&#34;</span> <span style="color:#75715e">#只有服务端和mysql支持</span>
-</code></pre></div><p>使用full标签等价于</p>
-<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">go build -tags <span style="color:#e6db74">&#34;api client server forward nat other&#34;</span>
-</code></pre></div><div class="edit-meta">
+<main><h1>可插拔传输层插件开发</h1>
+<p>Trojan-Go鼓励开发传输层插件，以丰富协议类型，增加与GFW对抗的战略纵深。</p>
+<p>传输层插件的作用，是替代tansport隧道的TLS进行传输加密和混淆。</p>
+<p>插件与Trojan-Go基于TCP Socket通讯，与Trojan-Go本身不存在任何耦合关系，你可以使用任何你喜欢的语言和设计模式进行开发。我们建议的参照<a href="https://shadowsocks.org/en/spec/Plugin.html">SIP003</a>标准进行开发。如此开发的插件可以同时用于Trojan-Go和Shadowsocks。</p>
+<p>Trojan-Go开启插件功能后，仅使用TCP进行传输（明文）。你的插件只需要处理入站的TCP请求即可。你可以将这些TCP流量转换成任何你喜欢的流量格式，如QUIC，HTTP，甚至是ICMP。</p>
+<p>Trojan-Go插件设计原则，与Shadowsocks略有不同：</p>
+<ol>
+<li>
+<p>插件本身可以对传输内容进行加密，混淆和完整性校验，以及可以抵抗重放攻击。</p>
+</li>
+<li>
+<p>插件应该伪造一种已有的、常见的服务（记做X服务），及其流量，在此基础上嵌入自己的加密内容。</p>
+</li>
+<li>
+<p>服务端的插件，在检验到内容被篡改/遭到重放时，<strong>必须将此连接交由Trojan-Go处理</strong>。具体步骤是，将已读入和未读入的内容一并发送给Trojan-Go，并建立双向连接，而不是直接断开。Trojan-Go将与一个真实的X服务器建立连接，使攻击者直接与真实的X服务器进行交互。</p>
+</li>
+</ol>
+<p>解释如下：</p>
+<p>第一点原则，是由于Trojan协议本身并不加密。将TLS替换为传输层插件后，将<strong>完全信任插件的安全性</strong>。</p>
+<p>第二点原则，是继承Trojan的精神。最适合隐藏一棵树的地方，是森林。</p>
+<p>第三点原则，是为了充分利用Trojan-Go的抗主动探测特性。即使GFW对你的服务器进行主动探测，你的服务器也可以表现得与X服务一致，而不存在其他特征。</p>
+<p>为了方便理解，举一个例子。</p>
+<ol>
+<li>
+<p>假设你的插件伪装的是MySQL流量。防火墙通过流量嗅探，发现你的MySQL流量大得异常，决定主动连接你的服务器进行主动探测。</p>
+</li>
+<li>
+<p>防火墙连接到你的服务器并发送探测载荷，你的Trojan-Go服务端插件，经过校验，发现这个异常连接不是代理流量，于是将这个连接交由Trojan-Go处理。</p>
+</li>
+<li>
+<p>Trojan-Go发现这个连接异常，将这个连接重定向到一个真正的MySQL服务器上。于是，防火墙开始与一个真正的MySQL服务器进行交互，发现其行为与真实MySQL服务器无异，无法对服务器进行封禁。</p>
+</li>
+</ol>
+<p>另外，即使你的协议协议和插件不能满足原则2和原则3，甚至不能很好满足原则1，我们同样鼓励开发。因为GFW仅仅针对流行的协议进行审计和封锁，此类协议（土制密码学/土制协议）只要不公开发表，同样能保持非常强健的生命力。</p>
+<div class="edit-meta">
 
-<br><a href="https://github.com/p4gefau1t/trojan-go/docs/edit/master/content/developer/build.md" class="edit-page"><i class="fas fa-pen-square"></i> Edit on GitHub</a></div><nav class="pagination"><a class="nav nav-prev" href="https://p4gefau1t.github.io/trojan-go/developer/overview/" title="基本介绍"><i class="fas fa-arrow-left" aria-hidden="true"></i> Prev - 基本介绍</a>
-<a class="nav nav-next" href="https://p4gefau1t.github.io/trojan-go/developer/trojan/" title="Trojan协议">Next - Trojan协议 <i class="fas fa-arrow-right" aria-hidden="true"></i></a>
+<br><a href="https://github.com/p4gefau1t/trojan-go/docs/edit/master/content/developer/plugin.md" class="edit-page"><i class="fas fa-pen-square"></i> Edit on GitHub</a></div><nav class="pagination"><a class="nav nav-prev" href="https://p4gefau1t.github.io/trojan-go/developer/api/" title="API开发"><i class="fas fa-arrow-left" aria-hidden="true"></i> Prev - API开发</a>
+<a class="nav nav-next" href="https://p4gefau1t.github.io/trojan-go/developer/overview/" title="基本介绍">Next - 基本介绍 <i class="fas fa-arrow-right" aria-hidden="true"></i></a>
 </nav><footer><p class="powered">Powered by <a href="https://gohugo.io">Hugo</a>. Theme by <a href="https://themes.gohugo.io/hugo-theme-techdoc/">TechDoc</a>. Designed by <a href="https://github.com/thingsym/hugo-theme-techdoc">Thingsym</a>.</p>
 </footer>
 </main><div class="sidebar">
@@ -109,13 +126,13 @@ go build -tags <span style="color:#e6db74">&#34;server mysql&#34;</span> <span s
   
 <ul class="sub-menu">
 <li class=""><a href="https://p4gefau1t.github.io/trojan-go/developer/overview/">基本介绍</a></li>
-<li class="active"><a href="https://p4gefau1t.github.io/trojan-go/developer/build/">编译和自定义Trojan-Go</a></li>
+<li class=""><a href="https://p4gefau1t.github.io/trojan-go/developer/build/">编译和自定义Trojan-Go</a></li>
 <li class=""><a href="https://p4gefau1t.github.io/trojan-go/developer/trojan/">Trojan协议</a></li>
 <li class=""><a href="https://p4gefau1t.github.io/trojan-go/developer/mux/">多路复用</a></li>
 <li class=""><a href="https://p4gefau1t.github.io/trojan-go/developer/websocket/">Websocket</a></li>
 <li class=""><a href="https://p4gefau1t.github.io/trojan-go/developer/simplesocks/">SimpleSocks协议</a></li>
 <li class=""><a href="https://p4gefau1t.github.io/trojan-go/developer/api/">API开发</a></li>
-<li class=""><a href="https://p4gefau1t.github.io/trojan-go/developer/plugin/">可插拔传输层插件开发</a></li>
+<li class="active"><a href="https://p4gefau1t.github.io/trojan-go/developer/plugin/">可插拔传输层插件开发</a></li>
 </ul>
   
 </li>

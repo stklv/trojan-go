@@ -4,7 +4,7 @@
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>多路复用 - Trojan-Go Docs</title>
-<meta name="description" content="An unidentifiable mechanism that helps you bypass GFW. ">
+<meta name="description" content="An unidentifiable mechanism that helps you bypass GFW.">
 <meta name="generator" content="Hugo 0.69.2" />
 <link href="https://p4gefau1t.github.io/trojan-goindex.xml" rel="alternate" type="application/rss+xml">
 <link rel="canonical" href="https://p4gefau1t.github.io/trojan-go/developer/mux/">
@@ -30,7 +30,7 @@
 <meta itemprop="name" content="多路复用">
 <meta itemprop="description" content="Trojan-Go使用smux实现多路复用。同时实现了simplesocks协议用于进行代理传输。 当启用多路复用时，客户端首先发起TLS连接">
 
-<meta itemprop="wordCount" content="278">
+<meta itemprop="wordCount" content="279">
 <meta itemprop="image" content="https://p4gefau1t.github.io/trojan-go/images/og-image.png"/>
 
 
@@ -38,10 +38,8 @@
 <meta itemprop="keywords" content="" /></head>
 <body><div class="container"><header>
 <h1>Trojan-Go Docs</h1>
-
- <span class="version">Version 0.4.11</span>
 <a href="https://github.com/p4gefau1t/trojan-go" class="github"><i class="fab fa-github"></i></a>
-<p class="description">An unidentifiable mechanism that helps you bypass GFW. </p>
+<p class="description">An unidentifiable mechanism that helps you bypass GFW.</p>
 
 </header>
 <div class="global-menu">
@@ -77,14 +75,10 @@
 </tr>
 <tr>
 <td>Trojan</td>
-<td>仅用于认证</td>
+<td>用于鉴权</td>
 </tr>
 <tr>
-<td>TLS</td>
-<td></td>
-</tr>
-<tr>
-<td>TCP</td>
+<td>底层协议</td>
 <td></td>
 </tr>
 </tbody>
@@ -114,12 +108,15 @@
 <li class=""><a href="https://p4gefau1t.github.io/trojan-go/advance/">高级配置</a>
   
 <ul class="sub-menu">
-<li class=""><a href="https://p4gefau1t.github.io/trojan-go/advance/mux/">启用多路复用提升并发性能</a></li>
+<li class=""><a href="https://p4gefau1t.github.io/trojan-go/advance/mux/">启用多路复用提升网络并发性能</a></li>
 <li class=""><a href="https://p4gefau1t.github.io/trojan-go/advance/websocket/">使用Websocket进行CDN转发和抵抗中间人攻击</a></li>
 <li class=""><a href="https://p4gefau1t.github.io/trojan-go/advance/router/">国内直连和广告屏蔽</a></li>
-<li class=""><a href="https://p4gefau1t.github.io/trojan-go/advance/relay/">流量中继</a></li>
 <li class=""><a href="https://p4gefau1t.github.io/trojan-go/advance/forward/">隧道和反向代理</a></li>
 <li class=""><a href="https://p4gefau1t.github.io/trojan-go/advance/nginx-relay/">一种基于SNI代理的多路径分流中继方案</a></li>
+<li class=""><a href="https://p4gefau1t.github.io/trojan-go/advance/plugin/">使用Shadowsocks插件/可插拔传输层</a></li>
+<li class=""><a href="https://p4gefau1t.github.io/trojan-go/advance/aead/">使用Shadowsocks AEAD进行二次加密</a></li>
+<li class=""><a href="https://p4gefau1t.github.io/trojan-go/advance/customize-protocol-stack/">自定义协议栈</a></li>
+<li class=""><a href="https://p4gefau1t.github.io/trojan-go/advance/api/">使用API动态管理用户</a></li>
 </ul>
   
 </li>
@@ -133,7 +130,8 @@
 <li class="active"><a href="https://p4gefau1t.github.io/trojan-go/developer/mux/">多路复用</a></li>
 <li class=""><a href="https://p4gefau1t.github.io/trojan-go/developer/websocket/">Websocket</a></li>
 <li class=""><a href="https://p4gefau1t.github.io/trojan-go/developer/simplesocks/">SimpleSocks协议</a></li>
-<li class=""><a href="https://p4gefau1t.github.io/trojan-go/developer/api/">API</a></li>
+<li class=""><a href="https://p4gefau1t.github.io/trojan-go/developer/api/">API开发</a></li>
+<li class=""><a href="https://p4gefau1t.github.io/trojan-go/developer/plugin/">可插拔传输层插件开发</a></li>
 </ul>
   
 </li>
