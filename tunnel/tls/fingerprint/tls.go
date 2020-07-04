@@ -219,7 +219,7 @@ func GetClientHelloSpec(name string, websocket bool) (*ClientHelloSpec, error) {
 		}
 	}
 	if spec == nil {
-		return nil, common.NewError("Invalid fingerprint:" + name)
+		return nil, common.NewError("invalid fingerprint:" + name)
 	}
 	if websocket {
 		for i := range spec.Extensions {
@@ -235,7 +235,7 @@ func GetClientHelloSpec(name string, websocket bool) (*ClientHelloSpec, error) {
 
 func ParseCipher(s []string) []uint16 {
 	all := tls.CipherSuites()
-	result := []uint16{}
+	var result []uint16
 	for _, p := range s {
 		found := true
 		for _, q := range all {

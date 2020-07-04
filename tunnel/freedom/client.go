@@ -2,24 +2,18 @@ package freedom
 
 import (
 	"context"
-	"crypto/tls"
 	"net"
-	"net/url"
-	"strconv"
-	"time"
 
 	"github.com/p4gefau1t/trojan-go/common"
 	"github.com/p4gefau1t/trojan-go/config"
-	"github.com/p4gefau1t/trojan-go/log"
 	"github.com/p4gefau1t/trojan-go/tunnel"
-	"golang.org/x/net/proxy"
+	"github.com/txthinking/socks5"
 )
 
 type Client struct {
 	preferIPv4   bool
 	noDelay      bool
 	keepAlive    bool
-	dns          []string
 	ctx          context.Context
 	cancel       context.CancelFunc
 	forwardProxy bool
@@ -28,95 +22,22 @@ type Client struct {
 	password     string
 }
 
-func (c *Client) resolveIP(addr *tunnel.Address) ([]net.IPAddr, error) {
-	for _, s := range c.dns {
-		var dnsAddr string
-		var dnsHost, dnsType string
-		var err error
-
-		dnsURL, err := url.Parse(s)
-		if err != nil || dnsURL.Scheme == "" {
-			dnsType = "udp"
-			dnsAddr = s
-		} else {
-			dnsType = dnsURL.Scheme
-			dnsAddr = dnsURL.Host
-		}
-
-		dnsHost, tmp, err := net.SplitHostPort(dnsAddr)
-		dnsPort, err := strconv.ParseInt(tmp, 10, 32)
-		common.Must(err)
-
-		if err != nil {
-			dnsHost = dnsAddr
-			switch dnsType {
-			case "dot":
-				dnsPort = 853
-			case "tcp", "udp":
-				dnsPort = 53
-			}
-		}
-
-		resolver := &net.Resolver{
-			PreferGo: true,
-			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-				dnsAddress := tunnel.NewAddressFromHostPort("tcp", dnsHost, int(dnsPort))
-				switch dnsType {
-				case "udp", "tcp":
-					d := net.Dialer{
-						Timeout: time.Second * 5,
-					}
-					conn, err := d.DialContext(ctx, dnsType, dnsAddress.String())
-					if err != nil {
-						return nil, err
-					}
-					return conn, nil
-				case "dot":
-					tlsConn, err := tls.Dial("tcp", dnsAddress.String(), nil)
-					if err != nil {
-						return nil, err
-					}
-					return tlsConn, nil
-				}
-				return nil, common.NewError("invalid dns type:" + dnsType)
-			},
-		}
-		ip, err := resolver.LookupIPAddr(c.ctx, addr.String())
-		if err != nil {
-			log.Error(err)
-			continue
-		}
-		return ip, nil
-	}
-	return nil, common.NewError("address not found")
-}
-
 func (c *Client) DialConn(addr *tunnel.Address, t tunnel.Tunnel) (tunnel.Conn, error) {
-	network := "tcp"
-	if c.preferIPv4 {
-		network = "tcp4"
-	}
-
 	// forward proxy
 	if c.forwardProxy {
-		var auth *proxy.Auth
-		if c.username != "" {
-			auth = &proxy.Auth{
-				User:     c.username,
-				Password: c.password,
-			}
-		}
-		dialer, err := proxy.SOCKS5(network, c.proxyAddr.String(), auth, proxy.Direct)
-		if err != nil {
-			return nil, err
-		}
-		socksConn, err := dialer.Dial(network, addr.String())
+		socksClient, err := socks5.NewClient(c.proxyAddr.String(), c.username, c.password, 0, 0, 0)
+		common.Must(err)
+		conn, err := socksClient.Dial("tcp", addr.String())
 		if err != nil {
 			return nil, err
 		}
 		return &Conn{
-			Conn: socksConn,
+			Conn: conn,
 		}, nil
+	}
+	network := "tcp"
+	if c.preferIPv4 {
+		network = "tcp4"
 	}
 	dialer := new(net.Dialer)
 	tcpConn, err := dialer.DialContext(c.ctx, network, addr.String())
@@ -132,6 +53,32 @@ func (c *Client) DialConn(addr *tunnel.Address, t tunnel.Tunnel) (tunnel.Conn, e
 }
 
 func (c *Client) DialPacket(tunnel.Tunnel) (tunnel.PacketConn, error) {
+	if c.forwardProxy {
+		socksClient, err := socks5.NewClient(c.proxyAddr.String(), c.username, c.password, 0, 0, 0)
+		common.Must(err)
+		if err := socksClient.Negotiate(); err != nil {
+			return nil, common.NewError("freedom failed to negotiate socks").Base(err)
+		}
+		a, addr, port, err := socks5.ParseAddress("0.0.0.0:0")
+		common.Must(err)
+		resp, err := socksClient.Request(socks5.NewRequest(socks5.CmdUDP, a, addr, port))
+		if err != nil {
+			return nil, common.NewError("freedom failed to dial udp to socks").Base(err)
+		}
+		// TODO fix hardcoded localhost
+		packetConn, err := net.ListenPacket("udp", "127.0.0.1:0")
+		if err != nil {
+			return nil, common.NewError("freedom failed to listen udp").Base(err)
+		}
+		socksAddr, err := net.ResolveUDPAddr("udp", resp.Address())
+		if err != nil {
+			return nil, common.NewError("freedom recv invalid socks bind addr").Base(err)
+		}
+		return &SocksPacketConn{
+			PacketConn: packetConn,
+			socksAddr:  socksAddr,
+		}, nil
+	}
 	network := "udp"
 	if c.preferIPv4 {
 		network = "udp4"
@@ -151,15 +98,12 @@ func (c *Client) Close() error {
 }
 
 func NewClient(ctx context.Context, _ tunnel.Client) (*Client, error) {
-	// TODO implement dns
-	// TODO socks5 udp
 	cfg := config.FromContext(ctx, Name).(*Config)
 	addr := tunnel.NewAddressFromHostPort("tcp", cfg.ForwardProxy.ProxyHost, cfg.ForwardProxy.ProxyPort)
 	ctx, cancel := context.WithCancel(ctx)
 	return &Client{
 		ctx:          ctx,
 		cancel:       cancel,
-		dns:          cfg.DNS,
 		noDelay:      cfg.TCP.NoDelay,
 		keepAlive:    cfg.TCP.KeepAlive,
 		preferIPv4:   cfg.TCP.PreferIPV4,
