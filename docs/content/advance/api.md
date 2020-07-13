@@ -94,7 +94,7 @@ Trojan-Go本身集成了API控制功能，也即可以使用一个Trojan-Go实�
 3. 添加一个用户信息
 
     ```shell
-    ./trojan-go -api-addr 127.0.0.1:10000 -api list -add-profile -target-password password
+    ./trojan-go -api-addr 127.0.0.1:10000 -api set -add-profile -target-password password
     ```
 
 4. 删除一个用户信息
@@ -112,4 +112,4 @@ Trojan-Go本身集成了API控制功能，也即可以使用一个Trojan-Go实�
         -download-speed-limit 5242880
     ```
 
-    这个命令将密码为password的用户上传和下载速度限制为5MiB/s，同时连接的IP数量限制为3个，注意这里5242880的单位是字节。如果不填写这些限制或填写0，则维持原状。如果填写负数，则表示不进行限制。
+    这个命令将密码为password的用户上传和下载速度限制为5MiB/s，同时连接的IP数量限制为3个，注意这里5242880的单位是字节。如果填写0或者负数，则表示不进行限制。

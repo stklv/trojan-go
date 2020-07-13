@@ -1,6 +1,6 @@
 NAME=trojan-go
 PACKAGE_NAME=github.com/p4gefau1t/trojan-go
-VERSION=`git describe`
+VERSION=`git describe --dirty`
 COMMIT=`git rev-parse HEAD`
 
 BIN_DIR=bin
@@ -88,7 +88,7 @@ freebsd-amd64:
 	GOARCH=amd64 GOOS=freebsd $(GOBUILD)
 
 windows-386:
-	GOARCH=386 GOOS=windows $(GOBUILD)
+	GOARCH=386 GOOS=windows $(GOBUILD).exe
 
 windows-amd64:
-	GOARCH=amd64 GOOS=windows $(GOBUILD)
+	GOARCH=amd64 GOOS=windows $(GOBUILD).exe

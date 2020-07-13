@@ -58,16 +58,19 @@ func runTCPEchoServer() {
 	common.Must(err)
 	wg.Done()
 	go func() {
+		defer listener.Close()
 		for {
 			conn, err := listener.Accept()
 			if err != nil {
 				return
 			}
 			go func(conn net.Conn) {
+				defer conn.Close()
 				for {
-					conn.SetDeadline(time.Now().Add(time.Second))
 					buf := make([]byte, 2048)
+					conn.SetDeadline(time.Now().Add(time.Second * 5))
 					n, err := conn.Read(buf)
+					conn.SetDeadline(time.Time{})
 					if err != nil {
 						return
 					}
@@ -112,6 +115,7 @@ func runTCPBlackHoleServer() {
 	common.Must(err)
 	wg.Done()
 	go func() {
+		defer listener.Close()
 		for {
 			conn, err := listener.Accept()
 			if err != nil {
@@ -130,6 +134,7 @@ func runUDPBlackHoleServer() {
 	common.Must(err)
 	wg.Done()
 	go func() {
+		defer conn.Close()
 		buf := make([]byte, 1024*8)
 		for {
 			_, _, err := conn.ReadFrom(buf[:])

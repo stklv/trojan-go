@@ -8,6 +8,7 @@ import (
 	"github.com/p4gefau1t/trojan-go/config"
 	"github.com/p4gefau1t/trojan-go/tunnel"
 	"github.com/txthinking/socks5"
+	"golang.org/x/net/proxy"
 )
 
 type Client struct {
@@ -22,14 +23,23 @@ type Client struct {
 	password     string
 }
 
-func (c *Client) DialConn(addr *tunnel.Address, t tunnel.Tunnel) (tunnel.Conn, error) {
+func (c *Client) DialConn(addr *tunnel.Address, _ tunnel.Tunnel) (tunnel.Conn, error) {
 	// forward proxy
 	if c.forwardProxy {
-		socksClient, err := socks5.NewClient(c.proxyAddr.String(), c.username, c.password, 0, 0, 0)
-		common.Must(err)
-		conn, err := socksClient.Dial("tcp", addr.String())
+		var auth *proxy.Auth
+		if c.username != "" {
+			auth = &proxy.Auth{
+				User:     c.username,
+				Password: c.password,
+			}
+		}
+		dialer, err := proxy.SOCKS5("tcp", c.proxyAddr.String(), auth, proxy.Direct)
 		if err != nil {
-			return nil, err
+			return nil, common.NewError("freedom failed to init socks dialer")
+		}
+		conn, err := dialer.Dial("tcp", addr.String())
+		if err != nil {
+			return nil, common.NewError("freedom failed to dial target address via socks proxy " + addr.String()).Base(err)
 		}
 		return &Conn{
 			Conn: conn,
@@ -42,7 +52,7 @@ func (c *Client) DialConn(addr *tunnel.Address, t tunnel.Tunnel) (tunnel.Conn, e
 	dialer := new(net.Dialer)
 	tcpConn, err := dialer.DialContext(c.ctx, network, addr.String())
 	if err != nil {
-		return nil, err
+		return nil, common.NewError("freedom failed to dial " + addr.String()).Base(err)
 	}
 
 	tcpConn.(*net.TCPConn).SetKeepAlive(c.keepAlive)
@@ -59,7 +69,7 @@ func (c *Client) DialPacket(tunnel.Tunnel) (tunnel.PacketConn, error) {
 		if err := socksClient.Negotiate(); err != nil {
 			return nil, common.NewError("freedom failed to negotiate socks").Base(err)
 		}
-		a, addr, port, err := socks5.ParseAddress("0.0.0.0:0")
+		a, addr, port, err := socks5.ParseAddress("1.1.1.1:53") // useless address
 		common.Must(err)
 		resp, err := socksClient.Request(socks5.NewRequest(socks5.CmdUDP, a, addr, port))
 		if err != nil {
@@ -75,8 +85,9 @@ func (c *Client) DialPacket(tunnel.Tunnel) (tunnel.PacketConn, error) {
 			return nil, common.NewError("freedom recv invalid socks bind addr").Base(err)
 		}
 		return &SocksPacketConn{
-			PacketConn: packetConn,
-			socksAddr:  socksAddr,
+			PacketConn:  packetConn,
+			socksAddr:   socksAddr,
+			socksClient: socksClient,
 		}, nil
 	}
 	network := "udp"
