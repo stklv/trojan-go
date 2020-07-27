@@ -3,8 +3,10 @@ package proxy
 import (
 	"bufio"
 	"flag"
+	"fmt"
 	"io/ioutil"
 	"os"
+	"runtime"
 	"strings"
 
 	"github.com/p4gefau1t/trojan-go/common"
@@ -47,7 +49,7 @@ func (o *Option) Handle() error {
 }
 
 func (o *Option) Priority() int {
-	return 0
+	return 1
 }
 
 func init() {
@@ -55,12 +57,14 @@ func init() {
 		path: flag.String("config", "config.json", "Trojan-Go config filename (.yaml/.yml/.json)"),
 	})
 	option.RegisterHandler(&StdinOption{
-		format: flag.String("stdin-format", "yaml", "Read from standard input (yaml/json)"),
+		format:       flag.String("stdin-format", "disabled", "Read from standard input (yaml/json)"),
+		suppressHint: flag.Bool("stdin-suppress-hint", false, "Suppress hint text"),
 	})
 }
 
 type StdinOption struct {
-	format *string
+	format       *string
+	suppressHint *bool
 }
 
 func (o *StdinOption) Name() string {
@@ -71,6 +75,15 @@ func (o *StdinOption) Handle() error {
 	isJSON, e := o.isFormatJson()
 	if e != nil {
 		return e
+	}
+
+	if o.suppressHint == nil || !*o.suppressHint {
+		fmt.Printf("Trojan-Go %s (%s/%s)\n", constant.Version, runtime.GOOS, runtime.GOARCH)
+		if isJSON {
+			fmt.Println("Reading in JSON configuration from STDIN.")
+		} else {
+			fmt.Println("Reading in YAML configuration from STDIN.")
+		}
 	}
 
 	data, e := ioutil.ReadAll(bufio.NewReader(os.Stdin))
@@ -97,6 +110,9 @@ func (o *StdinOption) Priority() int {
 func (o *StdinOption) isFormatJson() (isJson bool, e error) {
 	if o.format == nil {
 		return false, common.NewError("format specifier is nil")
+	}
+	if *o.format == "disabled" {
+		return false, common.NewError("reading from stdin is disabled")
 	}
 	return strings.ToLower(*o.format) == "json", nil
 }

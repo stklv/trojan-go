@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/p4gefau1t/trojan-go/common"
 	"github.com/p4gefau1t/trojan-go/test/util"
@@ -50,6 +51,7 @@ func TestRedirector(t *testing.T) {
 		RedirectTo:  redirAddr,
 		InboundConn: conn2,
 	})
+	time.Sleep(time.Second)
 	req, err := http.NewRequest("GET", "http://localhost/", nil)
 	common.Must(err)
 	req.Write(conn1)

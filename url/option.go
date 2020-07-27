@@ -1,8 +1,8 @@
 package url
 
 import (
+	"encoding/json"
 	"flag"
-	"fmt"
 	"net"
 	"strconv"
 	"strings"
@@ -14,6 +14,46 @@ import (
 )
 
 const Name = "URL"
+
+type Websocket struct {
+	Enabled bool
+	Host    string
+	Path    string
+}
+
+type TLS struct {
+	SNI string
+}
+
+type Shadowsocks struct {
+	Enabled  bool
+	Method   string
+	Password string
+}
+
+type Mux struct {
+	Enabled bool
+}
+
+type API struct {
+	Enabled bool   `json:"enabled"`
+	APIHost string `json:"api_addr"`
+	APIPort int    `json:"api_port"`
+}
+
+type UrlConfig struct {
+	RunType     string   `json:"run_type"`
+	LocalAddr   string   `json:"local_addr"`
+	LocalPort   int      `json:"local_port"`
+	RemoteAddr  string   `json:"remote_addr"`
+	RemotePort  int      `json:"remote_port"`
+	Password    []string `json:"password"`
+	Websocket   `json:"websocket"`
+	Shadowsocks `json:"shadowsocks"`
+	TLS         `json:"ssl"`
+	Mux         `json:"mux"`
+	API         `json:"api"`
+}
 
 type url struct {
 	url    *string
@@ -32,33 +72,6 @@ func (u *url) Handle() error {
 	if err != nil {
 		log.Fatal(err)
 	}
-	clientConfigFormat := `
-{
-	"run_type": "client",
-	"local_addr": "%s",
-	"local_port": %d,
-	"remote_addr": "%s",
-	"remote_port": %d,
-	"password": [
-		"%s"
-	],
-	"tls": {
-		"sni": "%s"
-	},
-	"websocket": {
-		"enabled": %t,
-		"host": "%s",
-		"path": "%s"
-	},
-	"shadowsocks": {
-		"enabled": %t,
-		"method": "%s",
-		"password": "%s"
-	},
-	"mux": {
-		"enabled": %t
-	}
-}`
 	wsEnabled := false
 	if info.Type == ShareInfoTypeWebSocket {
 		wsEnabled = true
@@ -68,16 +81,21 @@ func (u *url) Handle() error {
 	ssMethod := ""
 	if strings.HasPrefix(info.Encryption, "ss;") {
 		ssEnabled = true
-		ssConfig := strings.Split(info.Encryption, ";")
-		if len(ssConfig) != 3 {
+		ssConfig := strings.Split(info.Encryption[3:], ":")
+		if len(ssConfig) != 2 {
 			log.Fatalf("invalid shadowsocks config: %s", info.Encryption)
 		}
-		ssMethod = ssConfig[1]
-		ssPassword = ssConfig[2]
+		ssMethod = ssConfig[0]
+		ssPassword = ssConfig[1]
 	}
 	muxEnabled := false
 	listenHost := "127.0.0.1"
 	listenPort := 1080
+
+	apiEnabled := false
+	apiHost := "127.0.0.1"
+	apiPort := 10000
+
 	options := strings.Split(*u.option, ";")
 	for _, o := range options {
 		key := ""
@@ -100,18 +118,62 @@ func (u *url) Handle() error {
 				log.Fatal(err)
 			}
 			listenHost = h
-			lp, err := strconv.ParseUint(p, 10, 16)
+			lp, err := strconv.Atoi(p)
 			if err != nil {
 				log.Fatal(err)
 			}
 			listenPort = int(lp)
+		case "api":
+			apiEnabled = true
+			h, p, err := net.SplitHostPort(val)
+			if err != nil {
+				log.Fatal(err)
+			}
+			apiHost = h
+			lp, err := strconv.Atoi(p)
+			if err != nil {
+				log.Fatal(err)
+			}
+			apiPort = int(lp)
 		default:
 			log.Fatal("invalid option", o)
 		}
 	}
-	clientConfig := fmt.Sprintf(clientConfigFormat, listenHost, listenPort, info.TrojanHost, info.Port, info.TrojanPassword, info.SNI, wsEnabled, info.Host, info.Path, ssEnabled, ssMethod, ssPassword, muxEnabled)
-	log.Debug(clientConfig)
-	client, err := proxy.NewProxyFromConfigData([]byte(clientConfig), true)
+	config := UrlConfig{
+		RunType:    "client",
+		LocalAddr:  listenHost,
+		LocalPort:  listenPort,
+		RemoteAddr: info.TrojanHost,
+		RemotePort: int(info.Port),
+		Password:   []string{info.TrojanPassword},
+		TLS: TLS{
+			SNI: info.SNI,
+		},
+		Websocket: Websocket{
+			Enabled: wsEnabled,
+			Path:    info.Path,
+			Host:    info.Host,
+		},
+		Mux: Mux{
+			Enabled: muxEnabled,
+		},
+		Shadowsocks: Shadowsocks{
+			Enabled:  ssEnabled,
+			Password: ssPassword,
+			Method:   ssMethod,
+		},
+		API: API{
+			Enabled: apiEnabled,
+			APIHost: apiHost,
+			APIPort: apiPort,
+		},
+	}
+	data, err := json.Marshal(&config)
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Debug(string(data))
+	client, err := proxy.NewProxyFromConfigData([]byte(data), true)
 	if err != nil {
 		log.Fatal(err)
 	}
