@@ -132,7 +132,7 @@ type Client struct {
 func (c *Client) Route(address *tunnel.Address) int {
 	policy := -1
 	var err error
-	if c.defaultPolicy == IPOnDemand {
+	if c.domainStrategy == IPOnDemand {
 		address, err = newIPAddress(address)
 		if err != nil {
 			return c.defaultPolicy
@@ -200,14 +200,16 @@ func (c *Client) DialPacket(overlay tunnel.Tunnel) (tunnel.PacketConn, error) {
 		return nil, common.NewError("router failed to dial udp (proxy)").Base(err)
 	}
 	ctx, cancel := context.WithCancel(c.ctx)
-	return &PacketConn{
+	conn := &PacketConn{
 		Client:     c,
 		PacketConn: directConn,
 		proxy:      proxy,
 		cancel:     cancel,
 		ctx:        ctx,
 		packetChan: make(chan *packetInfo, 16),
-	}, nil
+	}
+	go conn.packetLoop()
+	return conn, nil
 }
 
 func (c *Client) Close() error {
@@ -251,12 +253,15 @@ func loadCode(cfg *Config, prefix string) []codeInfo {
 
 func NewClient(ctx context.Context, underlay tunnel.Client) (*Client, error) {
 	cfg := config.FromContext(ctx, Name).(*Config)
-	ctx, cancel := context.WithCancel(ctx)
+	var cancel context.CancelFunc
+	ctx, cancel = context.WithCancel(ctx)
 
 	direct, err := freedom.NewClient(ctx, nil)
 	if err != nil {
-		return nil, common.NewError("failed to initialize raw client").Base(err)
+		cancel()
+		return nil, common.NewError("router failed to initialize raw client").Base(err)
 	}
+
 	client := &Client{
 		domains:  [3][]*v2router.Domain{},
 		cidrs:    [3][]*v2router.CIDR{},

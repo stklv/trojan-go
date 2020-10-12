@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/p4gefau1t/trojan-go/config"
-	"github.com/p4gefau1t/trojan-go/tunnel/transport"
-
 	"github.com/p4gefau1t/trojan-go/common"
+	"github.com/p4gefau1t/trojan-go/config"
 	"github.com/p4gefau1t/trojan-go/test/util"
 	"github.com/p4gefau1t/trojan-go/tunnel"
+	"github.com/p4gefau1t/trojan-go/tunnel/freedom"
+	"github.com/p4gefau1t/trojan-go/tunnel/transport"
 )
 
 func TestSimpleSocks(t *testing.T) {
@@ -22,6 +22,7 @@ func TestSimpleSocks(t *testing.T) {
 		RemotePort: port,
 	}
 	ctx := config.WithConfig(context.Background(), transport.Name, transportConfig)
+	ctx = config.WithConfig(ctx, freedom.Name, &freedom.Config{})
 	tcpClient, err := transport.NewClient(ctx, nil)
 	common.Must(err)
 	tcpServer, err := transport.NewServer(ctx, nil)
