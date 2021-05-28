@@ -10,13 +10,16 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/net/websocket"
+
 	"github.com/p4gefau1t/trojan-go/common"
 	"github.com/p4gefau1t/trojan-go/log"
-	"golang.org/x/net/websocket"
 )
 
-var HTTPAddr string
-var HTTPPort string
+var (
+	HTTPAddr string
+	HTTPPort string
+)
 
 func runHelloHTTPServer() {
 	httpHello := func(w http.ResponseWriter, req *http.Request) {
@@ -50,8 +53,10 @@ func runHelloHTTPServer() {
 	wg.Done()
 }
 
-var EchoAddr string
-var EchoPort int
+var (
+	EchoAddr string
+	EchoPort int
+)
 
 func runTCPEchoServer() {
 	listener, err := net.Listen("tcp", EchoAddr)
@@ -91,7 +96,7 @@ func runUDPEchoServer() {
 	go func() {
 		for {
 			buf := make([]byte, 1024*8)
-			n, addr, err := conn.ReadFrom(buf[:])
+			n, addr, err := conn.ReadFrom(buf)
 			if err != nil {
 				return
 			}
@@ -107,8 +112,10 @@ func GeneratePayload(length int) []byte {
 	return buf
 }
 
-var BlackHoleAddr string
-var BlackHolePort int
+var (
+	BlackHoleAddr string
+	BlackHolePort int
+)
 
 func runTCPBlackHoleServer() {
 	listener, err := net.Listen("tcp", BlackHoleAddr)
@@ -137,7 +144,7 @@ func runUDPBlackHoleServer() {
 		defer conn.Close()
 		buf := make([]byte, 1024*8)
 		for {
-			_, _, err := conn.ReadFrom(buf[:])
+			_, _, err := conn.ReadFrom(buf)
 			if err != nil {
 				return
 			}

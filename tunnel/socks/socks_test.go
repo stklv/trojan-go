@@ -10,14 +10,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/txthinking/socks5"
+	"golang.org/x/net/proxy"
+
 	"github.com/p4gefau1t/trojan-go/common"
 	"github.com/p4gefau1t/trojan-go/config"
 	"github.com/p4gefau1t/trojan-go/test/util"
 	"github.com/p4gefau1t/trojan-go/tunnel"
 	"github.com/p4gefau1t/trojan-go/tunnel/adapter"
 	"github.com/p4gefau1t/trojan-go/tunnel/socks"
-	"github.com/txthinking/socks5"
-	"golang.org/x/net/proxy"
 )
 
 func TestSocks(t *testing.T) {
@@ -72,7 +73,7 @@ func TestSocks(t *testing.T) {
 
 	payload := util.GeneratePayload(1024)
 	buf := bytes.NewBuffer(make([]byte, 0, 4096))
-	buf.Write([]byte{0, 0, 0}) //RSV, FRAG
+	buf.Write([]byte{0, 0, 0}) // RSV, FRAG
 	common.Must(addr.WriteTo(buf))
 	buf.Write(payload)
 

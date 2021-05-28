@@ -12,9 +12,10 @@ import (
 	"sync"
 	"time"
 
+	terminal "golang.org/x/term"
+
 	"github.com/p4gefau1t/trojan-go/log"
 	"github.com/p4gefau1t/trojan-go/log/golog/colorful"
-	"golang.org/x/crypto/ssh/terminal"
 )
 
 func init() {
@@ -230,7 +231,7 @@ func (l *Logger) Output(depth int, prefix Prefix, data string) error {
 	// Acquire exclusive access to the shared buffer
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	// Reset buffer so it start from the begining
+	// Reset buffer so it start from the beginning
 	l.buf.Reset()
 	// Write prefix to the buffer
 	if l.color {

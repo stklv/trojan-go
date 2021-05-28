@@ -6,10 +6,11 @@ import (
 	"testing"
 	"time"
 
+	"google.golang.org/grpc"
+
 	"github.com/p4gefau1t/trojan-go/common"
 	"github.com/p4gefau1t/trojan-go/config"
 	"github.com/p4gefau1t/trojan-go/statistic/memory"
-	"google.golang.org/grpc"
 )
 
 func TestClientAPI(t *testing.T) {
@@ -48,7 +49,7 @@ func TestClientAPI(t *testing.T) {
 	if resp.TrafficTotal.DownloadTraffic != 5678 || resp.TrafficTotal.UploadTraffic != 1234 {
 		t.Fail()
 	}
-	resp, err = client.GetTraffic(ctx, &GetTrafficRequest{})
+	_, err = client.GetTraffic(ctx, &GetTrafficRequest{})
 	if err == nil {
 		t.Fail()
 	}

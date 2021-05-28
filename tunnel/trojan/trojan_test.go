@@ -11,7 +11,6 @@ import (
 	"github.com/p4gefau1t/trojan-go/common"
 	"github.com/p4gefau1t/trojan-go/config"
 	"github.com/p4gefau1t/trojan-go/statistic/memory"
-	_ "github.com/p4gefau1t/trojan-go/statistic/memory"
 	"github.com/p4gefau1t/trojan-go/test/util"
 	"github.com/p4gefau1t/trojan-go/tunnel"
 	"github.com/p4gefau1t/trojan-go/tunnel/freedom"
@@ -53,13 +52,15 @@ func TestTrojan(t *testing.T) {
 	c, err := NewClient(clientCtx, tcpClient)
 	common.Must(err)
 	s, err := NewServer(serverCtx, tcpServer)
-
+	common.Must(err)
 	conn1, err := c.DialConn(&tunnel.Address{
 		DomainName:  "example.com",
 		AddressType: tunnel.DomainName,
 	}, nil)
+	common.Must(err)
 	common.Must2(conn1.Write([]byte("87654321")))
 	conn2, err := s.AcceptConn(nil)
+	common.Must(err)
 	buf := [8]byte{}
 	conn2.Read(buf[:])
 	if !util.CheckConn(conn1, conn2) {
@@ -87,7 +88,7 @@ func TestTrojan(t *testing.T) {
 		t.Fail()
 	}
 
-	//redirecting
+	// redirecting
 	conn, err := net.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", port))
 	common.Must(err)
 	sendBuf := util.GeneratePayload(1024)

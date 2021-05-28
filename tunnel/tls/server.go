@@ -13,7 +13,10 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
+
+	"github.com/huandu/go-clone"
 
 	"github.com/p4gefau1t/trojan-go/common"
 	"github.com/p4gefau1t/trojan-go/config"
@@ -33,6 +36,7 @@ type Server struct {
 	alpn               []string
 	PreferServerCipher bool
 	keyPair            []tls.Certificate
+	keyPairLock        sync.RWMutex
 	httpResp           []byte
 	cipherSuite        []uint16
 	sessionTicket      bool
@@ -77,7 +81,6 @@ func (s *Server) acceptLoop() {
 			return
 		}
 		go func(conn net.Conn) {
-
 			tlsConfig := &tls.Config{
 				CipherSuites:             s.cipherSuite,
 				PreferServerCipherSuites: s.PreferServerCipher,
@@ -85,6 +88,8 @@ func (s *Server) acceptLoop() {
 				NextProtos:               s.alpn,
 				KeyLogWriter:             s.keyLogger,
 				GetCertificate: func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+					s.keyPairLock.RLock()
+					defer s.keyPairLock.RUnlock()
 					sni := s.keyPair[0].Leaf.Subject.CommonName
 					dnsNames := s.keyPair[0].Leaf.DNSNames
 					if s.sni != "" {
@@ -100,7 +105,8 @@ func (s *Server) acceptLoop() {
 					if s.verifySNI && !matched {
 						return nil, common.NewError("sni mismatched: " + hello.ServerName + ", expected: " + s.sni)
 					}
-					return &s.keyPair[0], nil
+					keyPairCopied := clone.Clone(&s.keyPair[0]).(*tls.Certificate)
+					return keyPairCopied, nil
 				},
 			}
 
@@ -118,15 +124,16 @@ func (s *Server) acceptLoop() {
 					// not a valid tls client hello
 					handshakeRewindConn.Rewind()
 					log.Error(common.NewError("failed to perform tls handshake with " + tlsConn.RemoteAddr().String() + ", redirecting").Base(err))
-					if s.fallbackAddress != nil {
+					switch {
+					case s.fallbackAddress != nil:
 						s.redir.Redirect(&redirector.Redirection{
 							InboundConn: handshakeRewindConn,
 							RedirectTo:  s.fallbackAddress,
 						})
-					} else if s.httpResp != nil {
+					case s.httpResp != nil:
 						handshakeRewindConn.Write(s.httpResp)
 						handshakeRewindConn.Close()
-					} else {
+					default:
 						handshakeRewindConn.Close()
 					}
 				} else {
@@ -201,7 +208,7 @@ func (s *Server) AcceptPacket(tunnel.Tunnel) (tunnel.PacketConn, error) {
 func (s *Server) checkKeyPairLoop(checkRate time.Duration, keyPath string, certPath string, password string) {
 	var lastKeyBytes, lastCertBytes []byte
 	for {
-		log.Debug("checking cert..")
+		log.Debug("checking cert...")
 		keyBytes, err := ioutil.ReadFile(keyPath)
 		if err != nil {
 			log.Error(common.NewError("tls failed to check key").Base(err))
@@ -219,8 +226,9 @@ func (s *Server) checkKeyPairLoop(checkRate time.Duration, keyPath string, certP
 				log.Error(common.NewError("tls failed to load new key pair").Base(err))
 				continue
 			}
-			// TODO fix race
+			s.keyPairLock.Lock()
 			s.keyPair = []tls.Certificate{*keyPair}
+			s.keyPairLock.Unlock()
 			lastKeyBytes = keyBytes
 			lastCertBytes = certBytes
 		}
@@ -315,7 +323,7 @@ func NewServer(ctx context.Context, underlay tunnel.Server) (*Server, error) {
 	var keyLogger io.WriteCloser
 	if cfg.TLS.KeyLogPath != "" {
 		log.Warn("tls key logging activated. USE OF KEY LOGGING COMPROMISES SECURITY. IT SHOULD ONLY BE USED FOR DEBUGGING.")
-		file, err := os.OpenFile(cfg.TLS.KeyLogPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+		file, err := os.OpenFile(cfg.TLS.KeyLogPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 		if err != nil {
 			return nil, common.NewError("failed to open key log file").Base(err)
 		}

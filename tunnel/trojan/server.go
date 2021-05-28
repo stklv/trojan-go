@@ -7,14 +7,13 @@ import (
 	"net"
 
 	"github.com/p4gefau1t/trojan-go/api"
-	"github.com/p4gefau1t/trojan-go/statistic/memory"
-	"github.com/p4gefau1t/trojan-go/statistic/mysql"
-
 	"github.com/p4gefau1t/trojan-go/common"
 	"github.com/p4gefau1t/trojan-go/config"
 	"github.com/p4gefau1t/trojan-go/log"
 	"github.com/p4gefau1t/trojan-go/redirector"
 	"github.com/p4gefau1t/trojan-go/statistic"
+	"github.com/p4gefau1t/trojan-go/statistic/memory"
+	"github.com/p4gefau1t/trojan-go/statistic/mysql"
 	"github.com/p4gefau1t/trojan-go/tunnel"
 	"github.com/p4gefau1t/trojan-go/tunnel/mux"
 )
@@ -152,8 +151,14 @@ func (s *Server) acceptLoop() {
 			rewindConn.StopBuffering()
 			switch inboundConn.metadata.Command {
 			case Connect:
-				s.connChan <- inboundConn
-				log.Debug("normal trojan connection")
+				if inboundConn.metadata.DomainName == "MUX_CONN" {
+					s.muxChan <- inboundConn
+					log.Debug("mux(r) connection")
+				} else {
+					s.connChan <- inboundConn
+					log.Debug("normal trojan connection")
+				}
+
 			case Associate:
 				s.packetChan <- &PacketConn{
 					Conn: inboundConn,
